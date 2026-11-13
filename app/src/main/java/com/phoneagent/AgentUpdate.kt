@@ -1,27 +1,31 @@
 package com.phoneagent
 
 import android.content.Context
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Agent self-update: queries the npm registry for the latest version of each
- * bundled CLI and reinstalls from a freshly downloaded tarball when newer.
+ * dsh self-update: queries the registry for @deepseek-ai/dsh and installs a
+ * freshly downloaded tarball into the standby A/B slot.
  *
- * The embedded CLIs have no self-update command (dsh delegates to plugins,
- * zcode has none), so updates mean a fresh `npm install -g` over the old tree.
- * Versions stay pinned in Versions.kt for a cold install; this path lets
- * users move without shipping a new APK.
+ * This is the only updater in the build — the multi-agent version also had to
+ * chase zcode / codex / claude / opencode, which no longer ship. dsh has no
+ * self-update command (it delegates to plugins), so updating means a fresh
+ * `npm install -g` over a slot tree plus re-applying the Android patches
+ * before the new tree is ever activated.
+ *
+ * Version pinning stays in Versions.kt for a cold install; this path lets the
+ * user move to a newer dsh without shipping a new APK.
  */
 object AgentUpdate {
 
     data class Info(val name: String, val installed: String?, val latest: String) {
         val updateAvailable: Boolean get() = installed != null && installed != latest
     }
+
+    const val DSH_PKG = "@deepseek-ai/dsh"
 
     private fun registry(ctx: Context): String = Prefs.npmRegistry(ctx).trimEnd('/')
 
@@ -141,30 +145,17 @@ object AgentUpdate {
         null
     }
 
-    fun installedVersions(ctx: Context): Pair<String?, String?> {
-        val usr = NodeRuntime.usrDir(ctx)
-        fun ver(pkgPath: String): String? = try {
-            JSONObject(File(usr, pkgPath).readText()).getString("version")
-        } catch (_: Exception) {
-            null
-        }
-        val zcode = ver("lib/node_modules/zcode-app-cli/package.json")
-        val dsh = ver("lib/node_modules/@deepseek-ai/dsh/package.json")
-        return Pair(zcode, dsh)
+    /** Installed dsh version on disk (active tree), or null when absent. */
+    fun installedVersion(ctx: Context): String? = try {
+        JSONObject(File(NodeRuntime.usrDir(ctx), "lib/node_modules/@deepseek-ai/dsh/package.json").readText())
+            .getString("version")
+    } catch (_: Exception) {
+        null
     }
 
-    fun status(ctx: Context): List<Info> {
-        val (zcode, dsh) = installedVersions(ctx)
-        val reg = registry(ctx)
-        return listOf(
-            Info("zcode-app-cli", zcode, latestVersion(ctx, "zcode-app-cli") ?: "未知"),
-            Info("@deepseek-ai/dsh", dsh, latestVersion(ctx, "@deepseek-ai/dsh") ?: "未知"),
-            // standalone binary agents (terminal picker)
-            Info("codex", BinaryAgents.installedVersion(ctx, BinaryAgents.CODEX), BinaryAgents.latestVersion(ctx, BinaryAgents.CODEX) ?: "未知"),
-            Info("claude", BinaryAgents.installedVersion(ctx, BinaryAgents.CLAUDE), BinaryAgents.latestVersion(ctx, BinaryAgents.CLAUDE) ?: "未知"),
-            Info("opencode", BinaryAgents.installedVersion(ctx, BinaryAgents.OPENCODE), BinaryAgents.latestVersion(ctx, BinaryAgents.OPENCODE) ?: "未知"),
-        )
-    }
+    /** Current install + registry newest, for the settings row. Blocking. */
+    fun status(ctx: Context): List<Info> =
+        listOf(Info(DSH_PKG, installedVersion(ctx), latestVersion(ctx, DSH_PKG) ?: "未知"))
 
     /** Downloads [pkg]@[version] tarball into the pkg dir and returns the file. */
     fun fetchTarball(ctx: Context, pkg: String, version: String, onLine: (String) -> Unit): File? {
@@ -194,9 +185,9 @@ object AgentUpdate {
 
     /**
      * Installs [tgzFile] into the standby slot (A/B). The new version becomes
-     * active on the next app/agent boot; if that boot fails, the previous tree
-     * is restored automatically. zcode activates immediately (no boot to
-     * verify against); dsh waits for the next DshService start.
+     * active on the next DshService boot; if that boot fails, the previous tree
+     * is restored automatically. The Android patches are applied to the standby
+     * tree BEFORE activation, so the verification boot runs the adapted build.
      */
     fun applyUpdate(
         ctx: Context,
@@ -206,49 +197,27 @@ object AgentUpdate {
     ): Boolean {
         val node = NodeRuntime.nodeBin(ctx)
         val npm = NodeRuntime.npmCliJs(ctx)
-        val ignoreScripts = pkg != "zcode-app-cli"
-        val short = if (pkg == "zcode-app-cli") AgentSlots.ZCODE else AgentSlots.DSH
-        clearMarkers(ctx, pkg)
-        val version = AgentSlots.installUpdate(ctx, short, tgzFile, node, npm, ignoreScripts, onLine)
+        val short = AgentSlots.DSH
+        clearMarkers(ctx)
+        val version = AgentSlots.installUpdate(ctx, short, tgzFile, node, npm, ignoreScripts = true, onLine)
             ?: run {
                 onLine("[update] $pkg 更新失败，当前版本仍可用")
                 return false
             }
-        if (pkg == "@deepseek-ai/dsh") {
-            // patch the standby tree BEFORE it becomes active, so the
-            // verification boot runs the fully adapted build
-            val dshRoot = AgentSlots.read(ctx, short)?.let { s ->
-                File(AgentSlots.slotPrefix(ctx, short, s.standby ?: return@let null), "lib/node_modules/@deepseek-ai/dsh")
-            }
-            injectPty(ctx, onLine, dshRoot)
-            sharpWasm(ctx, node, npm, NodeRuntime.usrDir(ctx), onLine, dshRoot)
-            runAndroidPatches(ctx, onLine, dshRoot)
+        val dshRoot = AgentSlots.read(ctx, short)?.let { s ->
+            File(AgentSlots.slotPrefix(ctx, short, s.standby ?: return@let null), "lib/node_modules/@deepseek-ai/dsh")
         }
-        if (pkg == "zcode-app-cli") {
-            // zcode is a CLI with no boot to verify against — activate the
-            // standby slot immediately so the new version is live right away.
-            // Without this the slot stays pending-activate forever (beginBoot
-            // is only wired into DshService for dsh) and the update never
-            // takes effect, even after an app restart.
-            AgentSlots.beginBoot(ctx, AgentSlots.ZCODE) { onLine(it) }
-            AgentSlots.markBootOk(ctx, AgentSlots.ZCODE)
-            // Kill any running zcode TUI session so the next open picks up the
-            // new version immediately. The running node process has the old
-            // module loaded in memory; without this the user sees the old
-            // version until they force-stop the app (the "restart several
-            // times" symptom).
-            SessionHolder.nodeSessions["zcode"]?.finishIfRunning()
-            SessionHolder.nodeSessions.remove("zcode")
-        }
-        onLine("[update] $pkg $version 更新完成 ✅")
+        injectPty(ctx, onLine, dshRoot)
+        sharpWasm(ctx, node, npm, NodeRuntime.usrDir(ctx), onLine, dshRoot)
+        runAndroidPatches(ctx, onLine, dshRoot)
+        onLine("[update] dsh $version 已写入备用槽，下次启动生效 ✅")
         return true
     }
 
     /** Markers carry the packaged version, so match by prefix. */
-    private fun clearMarkers(ctx: Context, pkg: String) {
-        val prefix = if (pkg == "zcode-app-cli") ".cli-installed-zcode" else ".cli-installed-dsh"
+    private fun clearMarkers(ctx: Context) {
         NodeRuntime.usrDir(ctx).listFiles()?.forEach { f ->
-            if (f.name.startsWith(prefix)) f.delete()
+            if (f.name.startsWith(".cli-installed-dsh")) f.delete()
         }
     }
 
@@ -297,59 +266,6 @@ object AgentUpdate {
     }
 
     /** Manual rollback from Settings: swap back to the standby slot tree. */
-    fun rollback(ctx: Context, pkg: String, onLine: (String) -> Unit): Boolean {
-        val short = if (pkg == "zcode-app-cli") AgentSlots.ZCODE else AgentSlots.DSH
-        return AgentSlots.rollback(ctx, short, onLine)
-    }
-
-    /** Binary agents (codex/claude/opencode): download platform tgz to pkg and re-extract. */
-    fun updateBinaryAgent(ctx: Context, agent: String, version: String, onLine: (String) -> Unit): Boolean {
-        // never downgrade: the settings rows are driven by the cached check,
-        // which may be older than what a previous update already installed
-        val installed = BinaryAgents.installedVersion(ctx, agent)
-        if (installed != null && AgentSlots.compareVersions(installed, version) >= 0) {
-            onLine("[update] $agent 已是 $installed（>= $version），跳过")
-            return true
-        }
-        val tarball = when (agent) {
-            BinaryAgents.CODEX -> "${registry(ctx)}/@openai/codex/-/codex-$version-linux-arm64.tgz"
-            BinaryAgents.CLAUDE -> "${registry(ctx)}/@anthropic-ai%2fclaude-code-linux-arm64-musl/-/claude-code-linux-arm64-musl-$version.tgz"
-            BinaryAgents.OPENCODE -> "${registry(ctx)}/opencode-linux-arm64-musl/-/opencode-linux-arm64-musl-$version.tgz"
-            else -> return false
-        }
-        val out = File(NodeRuntime.pkgDir(ctx), "$agent.tgz")
-        onLine("[update] 下载 $agent@$version ...")
-        if (!download(ctx, tarball, out) { onLine("[update] 下载失败：$it") }) return false
-        onLine("[update] 下载完成：${"%.1f".format(out.length() / 1048576.0)}MB")
-        File(NodeRuntime.pkgDir(ctx), ".$agent-version").delete()
-        // Back up the known-good binary before the destructive extract so a
-        // broken update (corrupt tarball, segfault, loader mismatch) can be
-        // rolled back instead of leaving the agent dead.
-        val backedUp = BinaryAgents.backup(ctx, agent)
-        // force: the previous tree is still present, so a plain ensure() would
-        // short-circuit on isReady() and keep the old binary
-        val ok = BinaryAgents.ensure(ctx, agent, force = true) { line -> onLine(line) }
-        if (!ok) {
-            if (backedUp && BinaryAgents.restore(ctx, agent))
-                onLine("[update] 解压失败，已恢复旧版本")
-            return false
-        }
-        // Verify the new binary actually starts on this device before committing.
-        onLine("[update] 验证新版本...")
-        if (!BinaryAgents.verify(ctx, agent)) {
-            onLine("[update] 新版本验证不通过（无法启动），已恢复旧版本")
-            if (backedUp) BinaryAgents.restore(ctx, agent)
-            return false
-        }
-        // ensure records the BUNDLED version as the marker; record the
-        // version actually installed, or the update would keep showing
-        // as available and re-downloading forever
-        File(NodeRuntime.pkgDir(ctx), ".$agent-version").writeText(version)
-        // Kill any running TUI session so the next open picks up the new binary.
-        SessionHolder.binarySessions[agent]?.finishIfRunning()
-        SessionHolder.binarySessions.remove(agent)
-        val note = if (agent == BinaryAgents.OPENCODE) "（重启 opencode webui 后生效）" else ""
-        onLine("[update] $agent 更新完成 ✅ $version $note")
-        return true
-    }
+    fun rollback(ctx: Context, pkg: String, onLine: (String) -> Unit): Boolean =
+        AgentSlots.rollback(ctx, AgentSlots.DSH, onLine)
 }

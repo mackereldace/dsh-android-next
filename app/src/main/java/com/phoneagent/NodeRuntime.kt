@@ -32,12 +32,9 @@ object NodeRuntime {
 
     fun nodeBin(ctx: Context): File = File(usrDir(ctx), "bin/node")
     fun npmCliJs(ctx: Context): File = File(usrDir(ctx), "lib/node_modules/npm/bin/npm-cli.js")
-    fun zcodeEntryJs(ctx: Context): File =
-        File(usrDir(ctx), "lib/node_modules/zcode-app-cli/bin/zcode.js")
     fun dshEntryJs(ctx: Context): File =
         File(usrDir(ctx), "lib/node_modules/@deepseek-ai/dsh/lib/bin.js")
 
-    fun isZcodeInstalled(ctx: Context): Boolean = zcodeEntryJs(ctx).exists()
     fun isDshInstalled(ctx: Context): Boolean = dshEntryJs(ctx).exists()
 
     /**
@@ -105,7 +102,7 @@ object NodeRuntime {
      * because the linker fell back to /system/lib64/libssl.so.
      *
      * Only paths named by the PREVIOUS manifest are candidates, so npm-installed
-     * CLI shims in usr/bin (zcode, dsh, ...) and our own additions (bwrap,
+     * CLI shims in usr/bin (dsh) and our own additions (bwrap,
      * proot, landlock-wrap) are never touched.
      */
     private fun pruneStaleRuntimeFiles(ctx: Context) {
@@ -137,9 +134,7 @@ object NodeRuntime {
         // usable change signal: gate the whole ~350MB staging set on the
         // component versions instead. Copying happens once per version bump.
         val key = listOf(
-            Versions.ZCODE, Versions.DSH, Versions.CODEX_VERSION, Versions.CLAUDE_VERSION,
-            Versions.OPENCODE_VERSION, Versions.RIPGREP_VERSION, Versions.PNPM_VERSION,
-            Versions.RUNTIME,
+            Versions.DSH, Versions.RIPGREP_VERSION, Versions.PNPM_VERSION, Versions.RUNTIME,
         ).joinToString("|")
         val keyFile = File(pkgDir(ctx), ".staged-key")
         // repair exec bits without re-staging: old builds wrote the loader/rg
@@ -150,18 +145,12 @@ object NodeRuntime {
         // upgrades forever. The app domain can mmap these without the bit, but
         // the root/Shizuku spawn execs the loader directly — that is what
         // surfaced as "can't execute: Permission denied" on Magisk.
-        for (name in arrayOf(
-            "ld-musl-aarch64.so.1", "rg",
-            // opencode's GNU C++ runtime, loaded through the same loader path
-            "libstdc++.so.6", "libgcc_s.so.1",
-        )) {
+        for (name in arrayOf("rg")) {
             val f = File(pkgDir(ctx), name)
             if (f.exists() && !f.canExecute()) f.setExecutable(true, false)
         }
         if (keyFile.exists() && keyFile.readText().trim() == key) return
-        for (name in arrayOf(Versions.ZCODE_TGZ, Versions.DSH_TGZ)) {
-            copyAssetIfChanged(ctx, "packages/$name", File(pkgDir(ctx), name))
-        }
+        copyAssetIfChanged(ctx, "packages/${Versions.DSH_TGZ}", File(pkgDir(ctx), Versions.DSH_TGZ))
         // CI-built node-pty android-arm64 binding (optional until fetch-native.sh runs)
         try {
             copyAssetIfChanged(ctx, "native/node-pty/pty.node", File(pkgDir(ctx), "node-pty-prebuild/pty.node"))
@@ -185,20 +174,13 @@ object NodeRuntime {
                 // asset absent: matching dsh patch skipped
             }
         }
-        // codex / claude npm platform tarballs + musl loader for the terminal
-        // picker (optional until fetch-terminal-extra.sh runs in CI)
-        for (name in arrayOf(
-            "codex.tgz", "claude.tgz", "ld-musl-aarch64.so.1", "versions.json", "rg",
-            // opencode: Bun executable + the musl loader / C++ runtime it needs,
-            // plus the DNS proxy that routes Bun's broken resolver through Node
-            "opencode.tgz", "libstdc++.so.6", "libgcc_s.so.1",
-        )) {
+        // static ripgrep backing dsh's glob/grep (staged by fetch-ripgrep.sh)
+        for (name in arrayOf("rg", "versions.json")) {
             try {
-                // the loader and ripgrep get exec'd directly (serve / dsh shim)
                 copyAssetIfChanged(ctx, "terminal-extra/$name", File(pkgDir(ctx), name),
-                    executable = name == "ld-musl-aarch64.so.1" || name == "rg")
+                    executable = name == "rg")
             } catch (_: IOException) {
-                // asset absent: picker shows the entries as unavailable
+                // asset absent: dsh falls back to its own search or fails closed
             }
         }
         keyFile.writeText(key)
@@ -483,7 +465,7 @@ exec "$usr/bin/node" "$real" "${'$'}@"
     /**
      * Seeds the must-read environment description (AGENTS.md) that both CLIs
      * auto-load into context: ~/.dsh/AGENTS.md is dsh's global instructions
-     * file, the workspace root AGENTS.md is read by zcode (and dsh). Only
+     * file, the workspace root AGENTS.md is read by dsh. Only
      * written when missing — the user may edit their copy.
      */
     fun seedAgentInstructions(ctx: Context) {

@@ -1,6 +1,5 @@
 package com.phoneagent
 
-import android.database.sqlite.SQLiteDatabase
 import android.os.Bundle
 import android.os.SystemClock
 import android.widget.Toast
@@ -52,7 +51,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Usage stats + per-session management across zcode / dsh / opencode. */
+/** Usage stats + per-session management for dsh (the only agent this build runs). */
 class UsageActivity : ComponentActivity() {
 
     private sealed interface Screen {
@@ -64,6 +63,7 @@ class UsageActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableImmersiveSystemBars()   // edge-to-edge + 透明系统栏
         setContent {
             AppTheme { Root() }
         }
@@ -134,7 +134,7 @@ class UsageActivity : ComponentActivity() {
                 Spacer(Modifier.height(8.dp))
             }
             // only agents whose sessions we can actually read
-            for (agent in listOf("zcode", "dsh", "opencode")) {
+            for (agent in AgentRegistry.all.map { it.id }) {
                 item {
                     Card(Modifier.fillMaxSize().clickable { onOpenAgent(agent) }) {
                         Column(Modifier.padding(16.dp)) {
@@ -146,11 +146,7 @@ class UsageActivity : ComponentActivity() {
                             )
                             Spacer(Modifier.height(4.dp))
                             M3Text(
-                                when (agent) {
-                                    "zcode" -> "标题 / 模型 / 工具调用 / token / 时长 / 删除"
-                                    "dsh" -> "标题 / 工具调用与错误 / token / 轮次 / 重试 / 删除"
-                                    else -> "标题 / token 聚合 / 成本 / 消息数"
-                                },
+                                "标题 / 工具调用与错误 / token / 轮次 / 重试 / 删除",
                                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 fontSize = 12.sp,
                             )
@@ -187,11 +183,7 @@ class UsageActivity : ComponentActivity() {
         var query by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue("")) }
         LaunchedEffect(Unit) {
             sessions = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                when (agent) {
-                    "zcode" -> SessionData.zcodeList(this@UsageActivity)
-                    "dsh" -> SessionData.dshList(this@UsageActivity)
-                    else -> SessionData.opencodeList(this@UsageActivity)
-                }
+                SessionData.dshList(this@UsageActivity)
             }
         }
         val list = sessions?.let { all ->
@@ -277,17 +269,6 @@ class UsageActivity : ComponentActivity() {
                                     Spacer(Modifier.height(4.dp))
                                     M3Text(s.model, color = MiuixTheme.colorScheme.onSurfaceVariantSummary, fontSize = 11.sp)
                                 }
-                                Spacer(Modifier.height(8.dp))
-                                Row {
-                                    TextButton(onClick = { openTui(agent) }) {
-                                        M3Text(
-                                            "⌨ 打开对应 TUI" + if (s.fromTui) "（会话来源）" else "",
-                                            color = Color(0xFF7CC4FF),
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                        )
-                                    }
-                                }
                             }
                         }
                     }
@@ -302,14 +283,9 @@ class UsageActivity : ComponentActivity() {
     private fun DetailTab(agent: String, id: String, onDeleted: () -> Unit) {
         var detail by remember { mutableStateOf<SessionData.SessionDetail?>(null) }
         var confirmDelete by remember { mutableStateOf(false) }
-        var showMigrate by remember { mutableStateOf(false) }
         LaunchedEffect(id) {
             detail = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                when (agent) {
-                    "zcode" -> SessionData.zcodeDetail(this@UsageActivity, id)
-                    "dsh" -> SessionData.dshDetail(this@UsageActivity, id)
-                    else -> SessionData.opencodeDetail(this@UsageActivity, id)
-                }
+                SessionData.dshDetail(this@UsageActivity, id)
             }
         }
         val d = detail
@@ -414,42 +390,6 @@ class UsageActivity : ComponentActivity() {
                     }
                 }
                 item {
-                    Card(Modifier.fillMaxSize().clickable { openTui(agent) }) {
-                        Column(Modifier.padding(16.dp)) {
-                            M3Text(
-                                "⌨ 打开对应 TUI",
-                                color = Color(0xFF7CC4FF),
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            M3Text(
-                                if (d.session.fromTui) "该会话由终端 TUI 写入——TUI 会回到它的会话列表" else "启动该 agent 的终端 TUI（TUI 自行恢复最近会话）",
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                fontSize = 11.sp,
-                            )
-                        }
-                    }
-                }
-                item {
-                    Card(Modifier.fillMaxSize().clickable { showMigrate = true }) {
-                        Column(Modifier.padding(16.dp)) {
-                            M3Text(
-                                "迁移到其他 Agent",
-                                color = MiuixTheme.colorScheme.onSurface,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            M3Text(
-                                "对话内容以目标 agent 的原生格式写入其会话存储；工具调用转为文字摘要",
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                fontSize = 11.sp,
-                            )
-                        }
-                    }
-                }
-                item {
                     Card(Modifier.fillMaxSize().clickable { confirmDelete = true }) {
                         Column(Modifier.padding(16.dp)) {
                             M3Text(
@@ -469,31 +409,6 @@ class UsageActivity : ComponentActivity() {
                 }
             }
         }
-        if (showMigrate) {
-            val others = listOf("zcode", "dsh", "opencode").filter { it != agent }
-            AlertDialog(
-                onDismissRequest = { showMigrate = false },
-                title = { M3Text("迁移会话") },
-                text = {
-                    M3Text(
-                        "把该会话的对话记录（用户/助手文本、工具调用摘要、token 用量）迁移为另一个 agent 的原生会话。" +
-                            "原会话保留不动。",
-                    )
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        showMigrate = false
-                        doMigrate(agent, id, others[0])
-                    }) { M3Text("迁移到 " + agentLabel(others[0])) }
-                },
-                dismissButton = {
-                    TextButton(onClick = {
-                        showMigrate = false
-                        doMigrate(agent, id, others[1])
-                    }) { M3Text("迁移到 " + agentLabel(others[1])) }
-                },
-            )
-        }
         if (confirmDelete) {
             AlertDialog(
                 onDismissRequest = { confirmDelete = false },
@@ -501,8 +416,7 @@ class UsageActivity : ComponentActivity() {
                 text = {
                     Column {
                         M3Text(
-                            "「" + (d?.session?.title?.ifEmpty { id.take(18) } ?: id.take(18)) + "」将移入回收站。" +
-                                (if (agent == "opencode") "子代理会话一并移入。" else ""),
+                            "「" + (d?.session?.title?.ifEmpty { id.take(18) } ?: id.take(18)) + "」将移入回收站。",
                         )
                         d?.let {
                             Spacer(Modifier.height(6.dp))
@@ -536,35 +450,6 @@ class UsageActivity : ComponentActivity() {
                 dismissButton = { TextButton(onClick = { confirmDelete = false }) { M3Text("取消") } },
             )
         }
-    }
-
-    /** Opens the agent's terminal TUI — same mapping the terminal picker uses. */
-    private fun openTui(agent: String) {
-        val intent = when (agent) {
-            "zcode" -> android.content.Intent(this, ZcodeTerminalActivity::class.java).putExtra("agent", "zcode")
-            "dsh" -> android.content.Intent(this, ZcodeTerminalActivity::class.java).putExtra("agent", "dsh")
-            "opencode" -> android.content.Intent(this, OpencodeTerminalActivity::class.java)
-            else -> return
-        }
-        startActivity(intent)
-    }
-
-    private fun doMigrate(from: String, id: String, to: String) {
-        val ctx = this
-        Thread {
-            val result = SessionMigrate.migrate(ctx, from, id, to)
-            runOnUiThread {
-                val label = agentLabel(to)
-                result.fold(
-                    onSuccess = { newId ->
-                        Toast.makeText(ctx, "已迁移到 $label（新会话 $newId）", Toast.LENGTH_LONG).show()
-                    },
-                    onFailure = { e ->
-                        Toast.makeText(ctx, "迁移失败：${e.message}", Toast.LENGTH_LONG).show()
-                    },
-                )
-            }
-        }.start()
     }
 
     // ───────────────────────── trash tab ─────────────────────────
@@ -764,72 +649,7 @@ class UsageActivity : ComponentActivity() {
 
     // ───────────────────────── overview query (kept) ─────────────────────────
 
-    private fun db(): File = File(NodeRuntime.homeDir(this), ".zcode/cli/db/db.sqlite")
-
-    private fun query(): String {
-        val f = db()
-        if (!f.exists()) return getString(R.string.usage_empty)
-        return try {
-            // SQLite WAL: copy db + wal into cache so the live CLI file is untouched
-            val tmp = File(cacheDir, "usage-copy.sqlite")
-            val wal = File(f.parentFile, "db.sqlite-wal")
-            f.inputStream().use { it.copyTo(tmp.outputStream()) }
-            if (wal.exists()) wal.inputStream().use { it.copyTo(File(cacheDir, "usage-copy.sqlite-wal").outputStream()) }
-            val dbc = SQLiteDatabase.openDatabase(tmp.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
-            val sb = StringBuilder()
-
-            val daily = linkedMapOf<String, LongArray>() // [in, out, reasoning, requests]
-            dbc.rawQuery(
-                "SELECT date(started_at/1000,'unixepoch','localtime') AS d," +
-                    " SUM(input_tokens), SUM(output_tokens), SUM(reasoning_tokens), COUNT(*)" +
-                    " FROM model_usage GROUP BY d ORDER BY d DESC LIMIT 14",
-                null,
-            ).use { c ->
-                while (c.moveToNext()) {
-                    daily[c.getString(0) ?: "?"] =
-                        longArrayOf(c.getLong(1), c.getLong(2), c.getLong(3), c.getLong(4))
-                }
-            }
-            var totalIn = 0L; var totalOut = 0L; var totalRe = 0L; var totalReq = 0L
-            sb.append("【Zcode】\n近 14 天用量\n──────────────\n")
-            for ((day, v) in daily) {
-                totalIn += v[0]; totalOut += v[1]; totalRe += v[2]; totalReq += v[3]
-                sb.append(day).append("  ↑").append(fmt(v[0]))
-                    .append(" ↓").append(fmt(v[1]))
-                    .append("（").append(v[3]).append(" 次请求）\n")
-            }
-            if (daily.isEmpty()) sb.append("（暂无记录）\n")
-            sb.append("\n合计\n──────────────\n")
-                .append("输入 ").append(fmt(totalIn)).append(" tokens\n")
-                .append("输出 ").append(fmt(totalOut)).append(" tokens\n")
-                .append("推理 ").append(fmt(totalRe)).append(" tokens\n")
-                .append("请求 ").append(totalReq).append(" 次\n")
-
-            dbc.rawQuery(
-                "SELECT provider_id || '/' || model_id, COUNT(*)," +
-                    " SUM(input_tokens), SUM(output_tokens), SUM(reasoning_tokens)" +
-                    " FROM model_usage GROUP BY provider_id, model_id ORDER BY 3 DESC LIMIT 8",
-                null,
-            ).use { c ->
-                if (c.count > 0) {
-                    sb.append("\n按模型\n──────────────\n")
-                    while (c.moveToNext()) {
-                        sb.append(c.getString(0)).append("  ")
-                            .append(c.getLong(1)).append(" 次  ↑")
-                            .append(fmt(c.getLong(2))).append(" ↓")
-                            .append(fmt(c.getLong(3)))
-                            .append(" ◈").append(fmt(c.getLong(4))).append("\n")
-                    }
-                }
-            }
-            dbc.close()
-            tmp.delete()
-            sb.append('\n').append(DshUsage.query(this))
-            sb.toString()
-        } catch (e: Exception) {
-            "读取用量失败：${e.message}"
-        }
-    }
+    private fun query(): String = DshUsage.query(this)
 
     // ───────────────────────── helpers ─────────────────────────
 

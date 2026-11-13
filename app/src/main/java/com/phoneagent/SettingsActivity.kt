@@ -38,6 +38,7 @@ class SettingsActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableImmersiveSystemBars()   // edge-to-edge + 透明系统栏
         pickWorkspace = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
             if (r.resultCode == RESULT_OK) {
                 r.data?.data?.let { Workspace.persist(this, it) }
@@ -116,9 +117,6 @@ class SettingsActivity : ComponentActivity() {
                         Column(Modifier.padding(16.dp)) {
                             val rollbackRows = remember(updateStatus) {
                                 listOfNotNull(
-                                    AgentSlots.read(this@SettingsActivity, AgentSlots.ZCODE)
-                                        ?.takeIf { it.standby != null && it.state == "verified" }
-                                        ?.let { "回滚 zcode 到 ${it.standbyVersion}" to "zcode-app-cli" },
                                     AgentSlots.read(this@SettingsActivity, AgentSlots.DSH)
                                         ?.takeIf { it.standby != null && it.state == "verified" }
                                         ?.let { "回滚 dsh 到 ${it.standbyVersion}" to "@deepseek-ai/dsh" },
@@ -144,46 +142,11 @@ class SettingsActivity : ComponentActivity() {
                                     }
                                 }
                             }
-                            UpdateRow("更新 zcode", enabled = updateInfos?.firstOrNull()?.updateAvailable == true) {
-                                updateStatus = "更新 zcode 中…"
-                                threadRun {
-                                    val log = StringBuilder()
-                                    doUpdate("zcode-app-cli", log)
-                                    ui { updateStatus = log.toString() }
-                                }
-                            }
-                            UpdateRow("更新 dsh", enabled = updateInfos?.lastOrNull()?.updateAvailable == true) {
+                            UpdateRow("更新 dsh", enabled = updateInfos?.firstOrNull()?.updateAvailable == true) {
                                 updateStatus = "更新 dsh 中…"
                                 threadRun {
                                     val log = StringBuilder()
                                     doUpdate("@deepseek-ai/dsh", log)
-                                    ui { updateStatus = log.toString() }
-                                }
-                            }
-                            UpdateRow("更新 codex", enabled = updateInfos?.firstOrNull { it.name == "codex" }?.updateAvailable == true) {
-                                updateStatus = "更新 codex 中…"
-                                threadRun {
-                                    val log = StringBuilder()
-                                    val ver = updateInfos?.firstOrNull { it.name == "codex" }?.latest
-                                    doUpdateBinary("codex", ver, log)
-                                    ui { updateStatus = log.toString() }
-                                }
-                            }
-                            UpdateRow("更新 claude", enabled = updateInfos?.firstOrNull { it.name == "claude" }?.updateAvailable == true) {
-                                updateStatus = "更新 claude 中…"
-                                threadRun {
-                                    val log = StringBuilder()
-                                    val ver = updateInfos?.firstOrNull { it.name == "claude" }?.latest
-                                    doUpdateBinary("claude", ver, log)
-                                    ui { updateStatus = log.toString() }
-                                }
-                            }
-                            UpdateRow("更新 opencode", enabled = updateInfos?.firstOrNull { it.name == "opencode" }?.updateAvailable == true) {
-                                updateStatus = "更新 opencode 中…"
-                                threadRun {
-                                    val log = StringBuilder()
-                                    val ver = updateInfos?.firstOrNull { it.name == "opencode" }?.latest
-                                    doUpdateBinary("opencode", ver, log)
                                     ui { updateStatus = log.toString() }
                                 }
                             }
@@ -219,8 +182,7 @@ class SettingsActivity : ComponentActivity() {
                             )
                             Spacer(Modifier.height(6.dp))
                             M3Text(
-                                "作用于 Zcode / DeepSeek Harness / opencode 三个 Web 界面，" +
-                                    "下次打开界面生效（也决定双指缩放的下限）",
+                                "作用于 DeepSeek Harness Web 界面，下次打开界面生效（也决定双指缩放的下限）",
                                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 fontSize = 12.sp,
                             )
@@ -285,90 +247,6 @@ class SettingsActivity : ComponentActivity() {
                     }
                 }
 
-                item { GroupTitle("第三方模型（Codex / Claude / opencode）") }
-                item {
-                    Card {
-                        Column(Modifier.padding(16.dp)) {
-                            var enabled by remember { mutableStateOf(Prefs.lanProviderEnabled(this@SettingsActivity)) }
-                            var base by remember { mutableStateOf(Prefs.lanProviderBaseUrl(this@SettingsActivity)) }
-                            var model by remember { mutableStateOf(Prefs.lanProviderModel(this@SettingsActivity)) }
-                            var maxTokens by remember { mutableStateOf(Prefs.lanProviderMaxTokens(this@SettingsActivity).toString()) }
-                            var token by remember { mutableStateOf(LanProvider.token(this@SettingsActivity)) }
-                            var status by remember { mutableStateOf("") }
-
-                            M3Text(
-                                "把 Codex CLI、Claude Code 与 opencode 指向局域网自建网关（如 workbuddy2api）：Codex 用 OpenAI Responses、Claude 用 Anthropic Messages、opencode 用 OpenAI Chat Completions；zcode 与 dsh 沿用各自官方登录（zcode 已内建 hy4-preview）。",
-                                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                fontSize = 13.sp,
-                            )
-                            Spacer(Modifier.height(10.dp))
-                            UpdateRow(if (enabled) "第三方模型接入：开" else "第三方模型接入：关", enabled = true) {
-                                enabled = !enabled
-                                Prefs.setLanProviderEnabled(this@SettingsActivity, enabled)
-                                LanProvider.apply(this@SettingsActivity)
-                                status = if (enabled) "已写入 codex / claude / opencode 三份配置" else "已清除接入配置"
-                            }
-
-                            if (enabled) {
-                                Spacer(Modifier.height(10.dp))
-                                FieldLabel("网关 Base URL（如 http://192.168.1.100:3002）")
-                                TextField(
-                                    value = androidx.compose.ui.text.input.TextFieldValue(base),
-                                    onValueChange = { base = it.text },
-                                    label = "http://192.168.1.100:3002",
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                                Spacer(Modifier.height(10.dp))
-                                FieldLabel("模型 ID（网关侧名称）")
-                                TextField(
-                                    value = androidx.compose.ui.text.input.TextFieldValue(model),
-                                    onValueChange = { model = it.text },
-                                    label = "cn:hy4-preview",
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                                Spacer(Modifier.height(10.dp))
-                                FieldLabel("最大输出 tokens（推理模型建议 ≥8192）")
-                                TextField(
-                                    value = androidx.compose.ui.text.input.TextFieldValue(maxTokens),
-                                    onValueChange = { maxTokens = it.text.filter(Char::isDigit) },
-                                    label = "8192",
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                                Spacer(Modifier.height(10.dp))
-                                FieldLabel("网关 Token（仅存本机，不随仓库分发）")
-                                TextField(
-                                    value = androidx.compose.ui.text.input.TextFieldValue(token),
-                                    onValueChange = { token = it.text },
-                                    label = "token",
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                                Spacer(Modifier.height(10.dp))
-                                UpdateRow("保存并应用", enabled = base.isNotBlank()) {
-                                    Prefs.setLanProviderBaseUrl(this@SettingsActivity, base)
-                                    Prefs.setLanProviderModel(this@SettingsActivity, model)
-                                    maxTokens.toIntOrNull()?.let { Prefs.setLanProviderMaxTokens(this@SettingsActivity, it) }
-                                    LanProvider.setToken(this@SettingsActivity, token)
-                                    LanProvider.apply(this@SettingsActivity)
-                                    status = "已应用：" + Prefs.lanProviderBaseUrl(this@SettingsActivity) + " · " + Prefs.lanProviderModel(this@SettingsActivity)
-                                }
-                            }
-
-                            if (status.isNotEmpty()) {
-                                Spacer(Modifier.height(8.dp))
-                                M3Text(
-                                    status,
-                                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                    fontSize = 12.sp,
-                                )
-                            }
-                        }
-                    }
-                }
-
                 item { GroupTitle("引擎保活与诊断") }
                 item {
                     Card {
@@ -377,7 +255,7 @@ class SettingsActivity : ComponentActivity() {
                             // cheap in-memory state, no I/O: read straight in composition
                             val watchdogText = buildString {
                                 append("看门狗 ").append(if (Watchdog.running) "运行中" else "未启动").append(" · ")
-                                for (a in listOf("zcode", "dsh", "opencode")) {
+                                for (a in AgentRegistry.all.map { it.id }) {
                                     append(a).append("=").append(Watchdog.stateOf(a)).append(" ")
                                 }
                             }
@@ -399,7 +277,7 @@ class SettingsActivity : ComponentActivity() {
                                 Prefs.setRestoreOnBoot(this@SettingsActivity, restore)
                             }
                             M3Text(
-                                "开启后，重启手机会自动拉起上次在跑的引擎（需 Shizuku 或 root 才能拉起 opencode）。",
+                                "开启后，重启手机会自动拉起 dsh 引擎。",
                                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                                 fontSize = 11.sp,
                             )
@@ -463,7 +341,7 @@ class SettingsActivity : ComponentActivity() {
                             }
                             var shizukuLog by remember { mutableStateOf("") }
                             M3Text(
-                                "opencode webui 在非 root 设备上通过 Shizuku（adb 权限）启动：" +
+                                "Shizuku 给本应用 adb 级权限（设备工具通道、全机端口与进程查看）：" +
                                     "安装 Shizuku 应用 → 开启一次（无线调试或 adb）→ 点下方请求授权。" +
                                     "设备重启后需要重新启动 Shizuku。",
                                 color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -527,7 +405,7 @@ class SettingsActivity : ComponentActivity() {
                         Column(Modifier.padding(16.dp)) {
                             top.yukonga.miuix.kmp.extra.SuperSwitch(
                                 title = "启用 root 集成",
-                                summary = "安装 Magisk 模块暴露系统级 zcode/dsh 命令",
+                                summary = "安装 Magisk 模块暴露系统级 dsh 命令",
                                 checked = rootEnabled,
                                 onCheckedChange = { rootEnabled = it },
                             )
@@ -583,21 +461,13 @@ class SettingsActivity : ComponentActivity() {
                         NodeRuntime.usrDir(this@SettingsActivity).deleteRecursively()
                         NodeRuntime.pkgDir(this@SettingsActivity).deleteRecursively()
                         NodeRuntime.homeDir(this@SettingsActivity).deleteRecursively()
-                        filesDir.listFiles()?.filter { it.name.startsWith(".runtime-") || it.name.startsWith(".zcode-web-") }?.forEach { it.delete() }
+                        filesDir.listFiles()?.filter { it.name.startsWith(".runtime-") }?.forEach { it.delete() }
                         android.widget.Toast.makeText(this@SettingsActivity, "已重置", android.widget.Toast.LENGTH_LONG).show()
                     }
                     Spacer(Modifier.height(24.dp))
                 }
             }
         }
-    }
-
-    private fun doUpdateBinary(agent: String, version: String?, log: StringBuilder) {
-        if (version == null) {
-            log.appendLine("[update] $agent 无可用更新（先检查更新）")
-            return
-        }
-        AgentUpdate.updateBinaryAgent(this, agent, version) { line -> log.appendLine(line) }
     }
 
     private fun doUpdate(pkg: String, log: StringBuilder) {

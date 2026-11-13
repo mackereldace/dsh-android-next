@@ -23,6 +23,7 @@ class DshActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableImmersiveSystemBars()   // edge-to-edge + 透明系统栏
         setContentView(R.layout.activity_dsh)
         webView = findViewById(R.id.webview)
         loading = findViewById(R.id.loading)

@@ -29,7 +29,7 @@ object Notifications {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val n = Notification.Builder(ctx, CHANNEL)
-            .setSmallIcon(R.drawable.ic_terminal_fg)
+            .setSmallIcon(android.R.drawable.stat_sys_warning)
             .setContentTitle("Phone Agent")
             .setContentText(text)
             .setContentIntent(pi)
@@ -52,17 +52,17 @@ object Notifications {
     fun build(ctx: Context, text: String): Notification {
         ensureChannel(ctx)
         return Notification.Builder(ctx, CHANNEL)
-            .setSmallIcon(R.drawable.ic_terminal_fg)
+            .setSmallIcon(android.R.drawable.stat_sys_warning)
             .setContentTitle("Phone Agent")
             .setContentText(text)
             .setOngoing(true)
             .build()
     }
 
-    /** Session-finished notice; tapping reopens the terminal to resume. */
+    /** Session-finished notice; tapping reopens the toolbox. */
     fun sessionFinished(ctx: Context, agent: String, exitStatus: Int) {
         ensureChannel(ctx)
-        val intent = Intent(ctx, TerminalPickerActivity::class.java).apply {
+        val intent = Intent(ctx, LauncherActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
         val pi = PendingIntent.getActivity(
@@ -72,7 +72,7 @@ object Notifications {
         val n = Notification.Builder(ctx, CHANNEL_DONE)
             .setSmallIcon(android.R.drawable.stat_notify_chat)
             .setContentTitle("$agent 会话已结束")
-            .setContentText(if (exitStatus == 0) "正常退出。点击回到终端。" else "退出码 $exitStatus。点击回到终端。")
+            .setContentText(if (exitStatus == 0) "正常退出。点击回到工具箱。" else "退出码 $exitStatus。点击回到工具箱。")
             .setContentIntent(pi)
             .setAutoCancel(true)
             .build()

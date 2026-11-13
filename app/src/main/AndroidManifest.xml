@@ -21,13 +21,13 @@
         android:label="@string/app_name"
         android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@style/Theme.PhoneAgent">
-        <!-- Launcher icon 1: terminal picker (zcode / dsh / codex / claude / opencode TUI) -->
+        <!-- Launcher icon 1: toolbox (dsh entry + usage / settings / diag) -->
         <activity
-            android:name=".TerminalPickerActivity"
+            android:name=".LauncherActivity"
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
             android:exported="true"
-            android:icon="@mipmap/ic_terminal"
-            android:label="@string/terminal_label"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/app_name"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -51,8 +51,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Handover target: "share with Phone Agent" / "open with Phone Agent".
-             Takes the file into a temp workspace and opens a new session there. -->
+        <!-- Handover target: "share with" / "open with" a file into a session. -->
         <activity
             android:name=".FileIncomingActivity"
             android:excludeFromRecents="true"
@@ -82,36 +81,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Launcher icon 3: official ZCode web UI -->
-        <activity
-            android:name=".ZcodeWebActivity"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
-            android:exported="true"
-            android:icon="@mipmap/ic_zcode_web"
-            android:label="@string/zcode_web_label"
-            android:launchMode="singleTask"
-            android:screenOrientation="sensorLandscape">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <!-- Launcher icon 4: opencode web UI -->
-        <activity
-            android:name=".OpencodeWebActivity"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
-            android:exported="true"
-            android:icon="@mipmap/ic_opencode"
-            android:label="@string/opencode_label"
-            android:launchMode="singleTask"
-            android:screenOrientation="sensorLandscape">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
         <activity
             android:name=".DiagActivity"
             android:exported="false"
@@ -122,51 +91,16 @@
             android:exported="false"
             android:label="@string/usage_title" />
 
-        <!-- Shared PTY terminal host for the TUIs chosen in TerminalPicker -->
-        <activity
-            android:name=".ZcodeTerminalActivity"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
-            android:exported="false"
-            android:label="@string/zcode_label"
-            android:launchMode="singleTask"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.PhoneAgent.Terminal" />
-
-        <activity
-            android:name=".CodexTerminalActivity"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
-            android:exported="false"
-            android:label="Codex TUI"
-            android:launchMode="singleTask"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.PhoneAgent.Terminal" />
-
-        <activity
-            android:name=".ClaudeTerminalActivity"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
-            android:exported="false"
-            android:label="Claude Code TUI"
-            android:launchMode="singleTask"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.PhoneAgent.Terminal" />
-
-        <activity
-            android:name=".OpencodeTerminalActivity"
-            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
-            android:exported="false"
-            android:label="opencode TUI"
-            android:launchMode="singleTask"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.PhoneAgent.Terminal" />
-
         <activity
             android:name=".SettingsActivity"
             android:exported="false"
             android:label="@string/settings_label" />
 
-        <service
-            android:name=".ZcodeWebService"
-            android:exported="false" />
+        <activity
+            android:name=".BrowserWorkbenchActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
+            android:exported="false"
+            android:label="AI 浏览器" />
 
         <service
             android:name=".DshService"
@@ -175,8 +109,7 @@
         <service
             android:name=".SessionService"
             android:exported="false" />
-            <!-- Loopback tool channel: lets agent sessions read the screen, dump the
-             UI tree, tap and run privileged shell commands via Shizuku. -->
+
         <receiver
             android:name=".BootReceiver"
             android:exported="true">
@@ -187,12 +120,8 @@
             </intent-filter>
         </receiver>
 
-        <activity
-            android:name=".BrowserWorkbenchActivity"
-            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
-            android:exported="false"
-            android:label="AI 浏览器" />
-
+        <!-- Loopback tool channel: screen capture, UI tree, taps, privileged
+             shell via Shizuku/root. Used by agent sessions (pa-* wrappers). -->
         <service
             android:name=".A11yService"
             android:exported="false"
@@ -211,13 +140,8 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <service
-            android:name=".OpencodeWebService"
-            android:exported="false" />
-
         <!-- Shizuku: receives the Shizuku server binder so this app can use
-             shell-uid APIs (opencode webui spawn, phantom-process fix) on
-             devices without root -->
+             shell-uid APIs on devices without root -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
             android:authorities="${applicationId}.shizuku"

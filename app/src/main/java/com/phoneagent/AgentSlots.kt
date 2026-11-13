@@ -5,7 +5,7 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * A/B slot management for the two agent packages (zcode, dsh) — the same
+ * A/B slot management for the dsh package — the same
  * contract as Android system updates: an update installs into the standby
  * slot, becomes active on the next boot, and is automatically reverted if that
  * boot fails; a manual rollback swaps the slots back.
@@ -16,13 +16,12 @@ import java.io.File
  * wrapper, the Android patcher) keeps working unchanged across switches.
  */
 object AgentSlots {
-    const val ZCODE = "zcode"
     const val DSH = "dsh"
 
     private fun root(ctx: Context, pkg: String): File = File(ctx.filesDir, "agents/$pkg")
     private fun metaFile(ctx: Context, pkg: String): File = File(root(ctx, pkg), "slot.json")
 
-    fun packageName(pkg: String): String = if (pkg == ZCODE) "zcode-app-cli" else "@deepseek-ai/dsh"
+    fun packageName(pkg: String): String = "@deepseek-ai/dsh"
     fun legacyDir(ctx: Context, pkg: String): File = File(NodeRuntime.usrDir(ctx), "lib/node_modules/${packageName(pkg)}")
     fun slotPackageDir(ctx: Context, pkg: String, slot: String): File =
         File(slotPrefix(ctx, pkg, slot), "lib/node_modules/${packageName(pkg)}")

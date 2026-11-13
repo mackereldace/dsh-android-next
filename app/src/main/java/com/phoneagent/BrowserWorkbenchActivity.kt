@@ -122,6 +122,7 @@ class BrowserWorkbenchActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableImmersiveSystemBars()   // edge-to-edge + 透明系统栏
         web = WebView(this)
         setContentView(web)
         web.settings.javaScriptEnabled = true

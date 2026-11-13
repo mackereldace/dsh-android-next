@@ -75,11 +75,9 @@ object Watchdog {
     private var thread: Thread? = null
     private val states = HashMap<String, TargetState>()
 
-    /** Extra crash signatures worth surfacing, per agent. */
+    /** Extra crash signatures worth surfacing. dsh-only build: one entry. */
     private val SIGNATURES = mapOf(
-        "opencode" to listOf("Bad system call", "ServeError", "EADDRINUSE"),
         "dsh" to listOf("plugin tree failed to load", "ERR_PNPM", "Cannot find module"),
-        "zcode" to listOf("EADDRINUSE", "Cannot find module"),
     )
 
     private val activeTargets = LinkedHashMap<String, Target>()
@@ -116,7 +114,7 @@ object Watchdog {
                         val s = probe(ctx, t)
                         st.lastState = s
                         // Until we have ever seen this service answer, it is booting,
-                        // not failing. dsh/zcode need tens of seconds on a cold start
+                        // not failing. dsh needs tens of seconds on a cold start
                         // (runtime extract + engine boot) — pulling the service down
                         // mid-start is what trips
                         // ForegroundServiceDidNotStartInTimeException.
@@ -233,12 +231,8 @@ object Watchdog {
     }
 
     private fun logFile(ctx: Context, agent: String): File? {
-        val name = when (agent) {
-            "zcode" -> "zcode-web.log"
-            "dsh" -> "dsh.log"
-            "opencode" -> "opencode.log"
-            else -> return null
-        }
+        if (agent != AgentRegistry.DSH_ID) return null
+        val name = "dsh.log"
         return File(ctx.cacheDir, name)
     }
 

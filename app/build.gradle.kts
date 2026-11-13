@@ -9,14 +9,14 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.phoneagent"
+        applicationId = "com.dshandroid.next"
         minSdk = 26
         // targetSdk 28 is deliberate: Android 10+ blocks exec() of files in app-writable
         // storage when targetSdk >= 29 (W^X), and the embedded Node runtime must be
         // executable from filesDir. Same tradeoff Termux makes. Not distributed via Play.
         targetSdk = 28
-        versionCode = 133
-        versionName = "0.8.16"
+        versionCode = 134
+        versionName = "0.9.0-slim1"
         ndk {
             abiFilters += "arm64-v8a"
         }
@@ -87,8 +87,6 @@ android {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
-    implementation(project(":terminal-view"))
-    implementation(project(":terminal-emulator"))
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")

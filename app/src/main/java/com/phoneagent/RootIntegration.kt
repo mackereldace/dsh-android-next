@@ -5,10 +5,10 @@ import com.topjohnwu.superuser.Shell
 import java.io.File
 
 /**
- * Optional root deep-integration. Installs a Magisk module that exposes
- * system-wide `zcode` / `dsh` commands backed by the embedded Node runtime, so
- * ANY terminal on the device (Termux, adb shell, MT manager, …) can launch the
- * TUI. The installed commands run as the invoking user — no root at runtime.
+ * Optional root deep-integration. Installs a Magisk module that exposes a
+ * system-wide `dsh` command backed by the embedded Node runtime, so ANY
+ * terminal on the device (Termux, adb shell, MT manager, …) can drive dsh.
+ * The installed command runs as the invoking user — no root at runtime.
  */
 object RootIntegration {
 
@@ -27,17 +27,16 @@ object RootIntegration {
         File(staging, "module.prop").writeText(
             """
             id=$MODULE_ID
-            name=Phone-Agent Runtime
+            name=DshAndroid Next Runtime
             version=v${BuildConfig.VERSION_NAME}
             versionCode=${BuildConfig.VERSION_CODE}
-            author=Phone-Agent app
-            description=System-wide zcode / dsh commands (embedded Node.js runtime). Installed by the Phone-Agent app; the commands themselves need no root.
+            author=DshAndroid Next
+            description=System-wide dsh command (embedded Node.js runtime). Installed by the app; the command itself needs no root.
             """.trimIndent() + "\n"
         )
-        File(sysBin, "zcode").writeText(SetupScripts.sysZcodeWrapper())
         File(sysBin, "dsh").writeText(SetupScripts.sysDshWrapper())
-        // Android 11+ SELinux blocks app-domain hard links; zcode's config writer
-        // uses link() atomically, so re-allow it for our domains (persisted by the
+        // Android 11+ SELinux blocks app-domain hard links; some atomic config
+        // writers use link(), so re-allow it for our domains (persisted by the
         // module's sepolicy.rule, applied live below).
         val seRules = listOf(
             "allow untrusted_app_27 app_data_file file link",
@@ -56,9 +55,9 @@ object RootIntegration {
             "rm -rf $MODULE_DIR/system/etc/phone_agent/usr",
             "mkdir -p $MODULE_DIR/system/bin $MODULE_DIR/system/etc/phone_agent",
             "cp -a $stg/module.prop $MODULE_DIR/module.prop",
-            "cp -a $stg/system/bin/zcode $stg/system/bin/dsh $MODULE_DIR/system/bin/",
+            "cp -a $stg/system/bin/dsh $MODULE_DIR/system/bin/",
             "cp -a $usr $MODULE_DIR/system/etc/phone_agent/usr",
-            "chmod 755 $MODULE_DIR/system/bin/zcode $MODULE_DIR/system/bin/dsh",
+            "chmod 755 $MODULE_DIR/system/bin/dsh",
             "chmod 644 $MODULE_DIR/module.prop",
             "chmod -R 755 $MODULE_DIR/system/etc/phone_agent/usr/bin",
             "chcon -R u:object_r:system_file:s0 $MODULE_DIR/system 2>/dev/null || true",
@@ -71,16 +70,16 @@ object RootIntegration {
             if (!r.isSuccess) allOk = false
             log += if (r.isSuccess) "[ok] $c" else "[fail] $c :: " + r.err.joinToString(" ")
         }
-        // live-apply the link rules so no reboot is needed for zcode's config writes
+        // live-apply the link rules so no reboot is needed for atomic config writes
         var seOk = true
         for (rule in seRules) {
             val r = Shell.cmd("ksud sepolicy patch \"$rule\" 2>/dev/null || magiskpolicy --live \"$rule\" 2>/dev/null").exec()
             if (!r.isSuccess) seOk = false
         }
         log += if (seOk) "[ok] SELinux link 规则已实时应用（重启后由模块 sepolicy.rule 续用）"
-        else "[warn] SELinux 规则实时应用失败——重启后由模块自动应用；期间 zcode 写配置可能仍报 EACCES"
+        else "[warn] SELinux 规则实时应用失败——重启后由模块自动应用；期间原子写配置可能仍报 EACCES"
         log += if (allOk)
-            "安装完成。重启手机后，任意终端输入 zcode / dsh 即可使用（无需 root 运行）。"
+            "安装完成。重启手机后，任意终端输入 dsh 即可使用（无需 root 运行）。"
         else "安装过程中有步骤失败，请查看上方日志。"
         return log
     }

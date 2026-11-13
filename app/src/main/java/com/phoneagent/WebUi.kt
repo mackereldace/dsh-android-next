@@ -3,7 +3,7 @@ package com.phoneagent
 import android.webkit.WebView
 
 /**
- * Shared WebView setup for the web UI activities (zcode / dsh / opencode).
+ * Shared WebView setup for the dsh web UI activity.
  *
  * Pinch zoom: Chromium WebView only performs gesture zoom when setSupportZoom
  * is on, and even then a page viewport meta with user-scalable=no would still

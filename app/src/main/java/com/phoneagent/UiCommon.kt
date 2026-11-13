@@ -54,3 +54,12 @@ fun UpdateRow(label: String, enabled: Boolean, onClick: () -> Unit) {
         }
     }
 }
+
+/** Shared app theme: Miuix with system dark/light detection. */
+@androidx.compose.runtime.Composable
+fun AppTheme(content: @androidx.compose.runtime.Composable () -> Unit) {
+    val dark = androidx.compose.foundation.isSystemInDarkTheme()
+    val colors = if (dark) top.yukonga.miuix.kmp.theme.darkColorScheme()
+    else top.yukonga.miuix.kmp.theme.lightColorScheme()
+    top.yukonga.miuix.kmp.theme.MiuixTheme(colors = colors, content = content)
+}

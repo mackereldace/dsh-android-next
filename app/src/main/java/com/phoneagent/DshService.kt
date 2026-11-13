@@ -103,7 +103,7 @@ class DshService : Service() {
             mark("  dshNeedsInstall=$needsInstall")
             mark("instructions+diag")
             if (needsInstall) {
-                notify("正在安装 zcode / dsh 组件（首次需联网）…")
+                notify("正在安装 dsh 组件（首次需联网）…")
                 val ok = Bootstrap.install(this) { line -> appendLog(line) }
                 if (!ok) {
                     DshState.lastError = "组件安装失败，检查网络/镜像/代理后重试"

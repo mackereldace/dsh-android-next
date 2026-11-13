@@ -8,13 +8,11 @@ import android.os.Bundle
 import java.io.File
 
 /**
- * Accepts files handed over from other apps (share sheet + "open with") and turns
- * them into a fresh session: the file is copied into a private temp workspace so
- * the agent has a real path it can read, then the terminal opens there with the
- * paths remembered for the first prompt.
+ * Accepts files handed over from other apps (share sheet + "open with") and
+ * copies them into a private handover folder the agent can actually read, then
+ * opens the dsh web UI so the user can point a session at it.
  *
- * Credit: the dispatch shape follows dsh-mobile-apk's file-open surface; the
- * temp workspace is swept by age (7 days) on startup.
+ * The temp workspace is swept by age (7 days) on startup.
  */
 class FileIncomingActivity : Activity() {
 
@@ -33,7 +31,7 @@ class FileIncomingActivity : Activity() {
             Intent.ACTION_VIEW -> src.data?.let { uris += it }
         }
         if (uris.isEmpty()) {
-            openTerminal(null)
+            openDsh()
             return
         }
         val ws = ensureTempWorkspace(this)
@@ -50,16 +48,14 @@ class FileIncomingActivity : Activity() {
                 // one unreadable attachment shouldn't sink the handoff
             }
         }
-        openTerminal(if (copied.isEmpty()) null else copied)
+        openDsh()
     }
 
-    private fun openTerminal(paths: List<String>?) {
-        SessionHolder.incomingFiles = paths
-        SessionHolder.pendingAgent = "zcode"
+    /** dsh owns its own workspace picker; the handover folder is just the drop point. */
+    private fun openDsh() {
         startActivity(
-            Intent(this, ZcodeTerminalActivity::class.java).apply {
+            Intent(this, DshActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                if (paths != null) putExtra("incoming", paths.joinToString("\n"))
             },
         )
     }

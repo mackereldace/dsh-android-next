@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Stages the zcode-app-cli and @deepseek-ai/dsh tarballs into
-# app/src/main/assets/packages/ so the app can install them offline on the
-# device (their remaining registry dependencies are fetched at first run).
+# Stages the @deepseek-ai/dsh tarball into app/src/main/assets/packages/ so the
+# app can install it offline on the device (remaining registry dependencies are
+# fetched at first run). dsh is the only agent this build ships.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source scripts/versions.env
@@ -14,8 +14,6 @@ if [ -n "${NPM_REGISTRY:-}" ]; then
   REGFLAGS=(--registry "$NPM_REGISTRY")
 fi
 
-echo "== packing zcode-app-cli@$ZCODE_VERSION"
-npm pack "zcode-app-cli@$ZCODE_VERSION" --pack-destination "$ASSETS" "${REGFLAGS[@]}"
 echo "== packing @deepseek-ai/dsh@$DSH_VERSION"
 npm pack "@deepseek-ai/dsh@$DSH_VERSION" --pack-destination "$ASSETS" "${REGFLAGS[@]}"
 

@@ -35,6 +35,7 @@ class DiagActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableImmersiveSystemBars()   // edge-to-edge + 透明系统栏
         setContent {
             AppTheme { Screen() }
         }
@@ -69,31 +70,27 @@ class DiagActivity : ComponentActivity() {
         sb.append("看门狗\n──────────────\n")
             .append("运行中：").append(if (Watchdog.running) "是" else "否").append('\n')
             .append("熔断：").append(if (Watchdog.enabled) "正常" else "已暂停").append('\n')
-        for (a in listOf("zcode", "dsh", "opencode")) {
+        for (a in AgentRegistry.all.map { it.id }) {
             sb.append("  ").append(a).append("：").append(Watchdog.stateOf(a)).append('\n')
         }
 
         sb.append("\n端口（经 Shizuku 读取全机监听）\n──────────────\n")
         val ports = if (ShizukuHelper.granted()) {
             val all = ShizukuHelper.listeningPorts()
-            val ours = mapOf(3030 to "zcode web", 3080 to "dsh web", 4096 to "opencode webui", 8899 to "工具通道")
+            val ours = mapOf(AgentRegistry.DSH_PORT to "dsh web", 8899 to "工具通道")
             if (all.isEmpty()) "（读不到）" else all.joinToString("\n") { p ->
                 "  $p${ours[p]?.let { "  $it" } ?: ""}"
             }
         } else {
             "（Shizuku 未授权，只能探测自己的端口）\n" +
-                listOf(3030, 3080, 4096, 8899).joinToString("\n") { p ->
+                listOf(AgentRegistry.DSH_PORT, 8899).joinToString("\n") { p ->
                     "  $p：${if (portOpen(p)) "在监听" else "未监听"}"
                 }
         }
         sb.append(ports).append('\n')
 
-        for (a in listOf("zcode", "dsh", "opencode")) {
-            val f = File(cacheDir, when (a) {
-                "zcode" -> "zcode-web.log"
-                "dsh" -> "dsh.log"
-                else -> "opencode.log"
-            })
+        for (a in AgentRegistry.all.map { it.id }) {
+            val f = File(cacheDir, "dsh.log")
             sb.append("\n").append(a).append(" 日志（")
                 .append(if (f.isFile) "%.1fKB".format(f.length() / 1024.0) else "无").append("）\n──────────────\n")
             if (f.isFile) {

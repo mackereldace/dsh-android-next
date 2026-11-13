@@ -1,7 +1,6 @@
 package com.phoneagent
 
 import android.content.Context
-import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import org.json.JSONObject
 import java.io.File
@@ -12,7 +11,7 @@ import java.io.File
  * the live store, purge is final.
  *
  * Payload per item: `files/trash/<agent>/<deletedAt>-<id>/`
- *  - zcode / opencode: `<agent>.sqlite` — every session-owned table copied with
+ *  - dsh: `payload/` — the session directory moved wholesale.
  *    `CREATE TABLE AS SELECT` (schema + rows in one statement, so live-schema
  *    drift cannot break the export). Restore re-inserts with INSERT OR REPLACE.
  *  - dsh: the session directory moved here unchanged; meta records its original
@@ -66,11 +65,7 @@ object SessionTrash {
         // capture the display title first — the hard delete below removes the
         // session from every list this could otherwise look it up in
         val title = try {
-            when (agent) {
-                "zcode" -> SessionData.zcodeList(ctx).firstOrNull { it.id == id }?.title
-                "opencode" -> SessionData.opencodeList(ctx).firstOrNull { it.id == id }?.title
-                else -> SessionData.dshList(ctx).firstOrNull { it.id == id }?.title
-            } ?: id
+            SessionData.dshList(ctx).firstOrNull { it.id == id }?.title ?: id
         } catch (_: Exception) {
             id
         }
@@ -78,11 +73,7 @@ object SessionTrash {
         dir.deleteRecursively()
         dir.mkdirs()
         val ok = try {
-            when (agent) {
-                "zcode" -> backupSqlite(ctx, "zcode", id, File(dir, "zcode.sqlite")) && SessionData.zcodeDelete(ctx, id) > 0
-                "opencode" -> backupSqlite(ctx, "opencode", id, File(dir, "opencode.sqlite")) && SessionData.opencodeDelete(ctx, id) > 0
-                else -> backupDsh(ctx, id, dir)
-            }
+            backupDsh(ctx, id, dir)
         } catch (e: Exception) {
             Log.w("SessionTrash", "moveToTrash $agent/$id failed", e)
             false
@@ -101,11 +92,7 @@ object SessionTrash {
 
     /** Puts the session back into its live store. Returns an error string or null. */
     fun restore(ctx: Context, item: Item): String? = try {
-        val err = when (item.agent) {
-            "zcode" -> restoreSqlite(ctx, "zcode", item)
-            "opencode" -> restoreSqlite(ctx, "opencode", item)
-            else -> restoreDsh(ctx, item)
-        }
+        val err = restoreDsh(ctx, item)
         if (err == null) item.dir.deleteRecursively()
         err
     } catch (e: Exception) {
@@ -115,101 +102,6 @@ object SessionTrash {
     fun purge(ctx: Context, item: Item): Boolean = item.dir.deleteRecursively()
 
     fun emptyAll(ctx: Context): Boolean = trashDir(ctx).deleteRecursively()
-
-    // ───────────────────────── sqlite agents (zcode / opencode) ─────────────────────────
-
-    private fun ownedTables(agent: String): Array<String> = when (agent) {
-        "zcode" -> arrayOf("message", "part", "model_usage", "tool_usage", "turn_usage", "input_history", "session_entry", "session_input", "session_task_link")
-        else -> arrayOf("part", "message", "todo", "session_input", "session_message", "session_share", "session_context_epoch")
-    }
-
-    private fun liveDb(agent: String, ctx: Context): File = when (agent) {
-        "zcode" -> File(NodeRuntime.homeDir(ctx), ".zcode/cli/db/db.sqlite")
-        else -> File(NodeRuntime.homeDir(ctx), ".local/share/opencode/opencode.db")
-    }
-
-    private fun backupSqlite(ctx: Context, agent: String, id: String, out: File): Boolean {
-        val live = liveDb(agent, ctx)
-        if (!live.exists()) return false
-        out.parentFile?.mkdirs()
-        // SQLite's ATTACH refuses to CREATE a fresh file here (SQLITE_CANTOPEN on
-        // this platform), so materialize an empty file first
-        if (!out.exists()) out.createNewFile()
-        val dbc = SQLiteDatabase.openDatabase(live.absolutePath, null, SQLiteDatabase.OPEN_READWRITE)
-        try {
-            dbc.rawQuery("PRAGMA busy_timeout = 5000", null).use { it.moveToFirst() }
-            dbc.execSQL("ATTACH DATABASE '" + out.absolutePath.replace("'", "''") + "' AS trashbak")
-            try {
-                dbc.beginTransaction()
-                try {
-                    var any = false
-                    for (t in ownedTables(agent)) {
-                        try {
-                            // one statement copies schema + rows; a missing table just skips
-                            dbc.execSQL("CREATE TABLE trashbak.`$t` AS SELECT * FROM main.`$t` WHERE session_id = ?", arrayOf(id))
-                            any = true
-                        } catch (_: Exception) {
-                        }
-                    }
-                    // both schemas key the session table on id, and both keep an event log keyed by aggregate
-                    for (stmt in arrayOf(
-                        "CREATE TABLE trashbak.`session` AS SELECT * FROM main.`session` WHERE id = ?",
-                        "CREATE TABLE trashbak.`event` AS SELECT * FROM main.`event` WHERE aggregate_id = ?",
-                        "CREATE TABLE trashbak.`event_sequence` AS SELECT * FROM main.`event_sequence` WHERE aggregate_id = ?",
-                    )) {
-                        try {
-                            dbc.execSQL(stmt, arrayOf(id))
-                            any = true
-                        } catch (_: Exception) {
-                        }
-                    }
-                    if (!any) return false
-                    dbc.setTransactionSuccessful()
-                } finally {
-                    dbc.endTransaction()
-                }
-            } finally {
-                dbc.execSQL("DETACH DATABASE trashbak")
-            }
-        } finally {
-            dbc.close()
-        }
-        return out.length() > 0
-    }
-
-    private fun restoreSqlite(ctx: Context, agent: String, item: Item): String? {
-        val bak = File(item.dir, "$agent.sqlite")
-        if (!bak.isFile) return "回收站备份缺失"
-        val live = liveDb(agent, ctx)
-        live.parentFile?.mkdirs()
-        val dbc = SQLiteDatabase.openDatabase(live.absolutePath, null, SQLiteDatabase.OPEN_READWRITE)
-        try {
-            dbc.rawQuery("PRAGMA busy_timeout = 5000", null).use { it.moveToFirst() }
-            dbc.execSQL("ATTACH DATABASE '" + bak.absolutePath.replace("'", "''") + "' AS trashbak")
-            val tables = mutableListOf<String>()
-            dbc.rawQuery("SELECT name FROM trashbak.sqlite_master WHERE type='table'", null).use { c ->
-                while (c.moveToNext()) tables += c.getString(0)
-            }
-            try {
-                dbc.beginTransaction()
-                try {
-                    for (t in tables) {
-                        dbc.execSQL("INSERT OR REPLACE INTO main.`$t` SELECT * FROM trashbak.`$t`")
-                    }
-                    dbc.setTransactionSuccessful()
-                } finally {
-                    dbc.endTransaction()
-                }
-            } catch (e: Exception) {
-                return e.message ?: "恢复失败"
-            } finally {
-                dbc.execSQL("DETACH DATABASE trashbak")
-            }
-        } finally {
-            dbc.close()
-        }
-        return null
-    }
 
     // ───────────────────────── dsh (directory move) ─────────────────────────
 

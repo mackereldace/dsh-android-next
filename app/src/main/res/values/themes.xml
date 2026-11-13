@@ -1,14 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Edge-to-edge: 两条系统栏透明，背景由窗口/内容自己铺满。
+         windowLayoutInDisplayCutoutMode=shortEdges 让横屏时内容也铺到刘海区。 -->
     <style name="Theme.PhoneAgent" parent="android:Theme.Material.NoActionBar">
-        <item name="android:statusBarColor">@color/ic_bg</item>
-        <item name="android:windowLayoutInDisplayCutoutMode">never</item>
+        <item name="android:windowBackground">@color/screen_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
     </style>
 
-    <style name="Theme.PhoneAgent.Terminal">
-        <item name="android:windowBackground">@color/screen_bg</item>
-        <item name="android:statusBarColor">@color/screen_bg</item>
-        <item name="android:navigationBarColor">@color/screen_bg</item>
-        <item name="android:windowLayoutInDisplayCutoutMode">never</item>
-    </style>
 </resources>

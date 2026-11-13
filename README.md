@@ -1,5 +1,19 @@
 # Phone-Agent
 
+> **本仓库是 dsh-android-next：Phone-Agent 的 dsh 单智能体重构分支。**
+>
+> 与上游的差别（需求定稿见 `phone-agent-优化需求文档.md`）：
+>
+> - **只服务 DeepSeek Harness**：zcode / opencode / codex / claude 的资产、服务、终端与入口已全部移除，
+>   内置终端（Termux 模拟器）也一并去掉——dsh 的 `bash` 工具跑在内嵌运行时的 bwrap/landlock 沙盒里，
+>   与终端 UI 无关；需要手动 shell 时装个 Termux 即可。
+> - **包名 `com.dshandroid.next`**：与官方包并存，不覆盖、不抢签名。
+> - **沉浸式系统栏**：状态栏/手势条透明、关掉对比度蒙层（`Immersive.kt`）。
+> - APK 只含 `runtime.tar.xz` + `@deepseek-ai/dsh` + node-pty/landlock-wrap + 静态 ripgrep。
+>
+> 上游 README 保留在下面，作为历史记录——其中多智能体、终端选择器、opencode Bun 方案等章节
+> 描述的是上游行为，本分支已不含这些代码。
+
 把 [Zcode](https://github.com/zai-org/ZCode) 与 [DeepSeek Harness (`dsh`)](https://github.com/deepseek-ai/deepseek-harness) 装进安卓手机本机运行的**独立 APP**——不依赖 Termux 应用，root 可选。
 
 > UI 采用 [Miuix](https://github.com/compose-miuix-ui/miuix)（HyperOS 风格 Compose 组件库，与 [InstallerX Revived](https://github.com/wxxsfxyzm/InstallerX-Revived) 同款）+ Jetpack Compose。当前版本 **0.7.72**（versionCode 89）；组件版本：zcode **3.14.4-30**、dsh **0.2.0-rc.2**、opencode **1.18.34**、codex **0.160.0**、claude **2.1.287**。
@@ -247,7 +261,7 @@ dsh 的 Web GUI 自带 **插件** 管理页（侧边栏 → 插件），由 `dsh
 
 ## 开发者
 
-- **构建**：Linux/WSL 下 `bash scripts/fetch-runtime.sh && bash scripts/fetch-packages.sh && bash scripts/fetch-terminal-extra.sh && bash scripts/fetch-zcode-web.sh`，然后 `gradle :app:assembleDebug`（JDK 17 + Android SDK + NDK）。Windows 上 assets 由 CI 产出。
+- **构建**：Linux/WSL 下 `bash scripts/fetch-runtime.sh && bash scripts/fetch-packages.sh && bash scripts/fetch-terminal-extra.sh`（`fetch-terminal-extra.sh` 在本分支只 stage 静态 ripgrep，`fetch-zcode-web.sh` 是空操作），然后 `gradle :app:assembleDebug`（JDK 17 + Android SDK + NDK）。Windows 上 assets 由 CI 产出。
 - **版本双锁**：`scripts/versions.env` 与 `app/src/main/java/com/phoneagent/Versions.kt` 必须同步；每次迭代同时升 `versionName`/`versionCode`。
 - **targetSdk 28 是刻意的**：Android 10+ 在 targetSdk ≥ 29 时禁止从应用私有目录 exec，内嵌 Node 必须能在 filesDir 执行（Termux 同款取舍）；本 App 侧载分发，不受商店政策约束。
 - **运行时清单**：`scripts/fetch-runtime.sh` 会把 `usr/bin`、`usr/lib` 顶层、`usr/libexec` 的文件列表写进 `runtime.manifest`；App 解压后据此删除上一版才有的文件（否则被移出清单的包会留下"旧二进制 + 新库"的组合，curl 曾因此报 `cannot locate symbol SSL_get_ex_new_index`）。

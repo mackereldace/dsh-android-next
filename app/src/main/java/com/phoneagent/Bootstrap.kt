@@ -4,17 +4,15 @@ import android.content.Context
 import java.io.File
 
 /**
- * First-run CLI installer: npm-install the bundled tarballs into the embedded
- * prefix. Used headlessly by DshService; the Zcode terminal runs the same
- * logic visibly through SetupScripts.zcodeScript().
+ * First-run CLI installer: npm-installs the bundled dsh tarball into the
+ * embedded prefix. Used headlessly by DshService.
  *
- * zcode installs normally (self-contained). dsh installs with --ignore-scripts
- * because its node-pty dependency cannot compile on-device; the CI-built
- * android-arm64 binding is injected afterwards from assets.
+ * dsh installs with --ignore-scripts because its node-pty dependency cannot
+ * compile on-device; the CI-built android-arm64 binding is injected afterwards
+ * from assets, then the Android patches are applied to the fresh tree.
  */
 object Bootstrap {
 
-    fun isZcodeInstalled(ctx: Context): Boolean = NodeRuntime.isZcodeInstalled(ctx)
     fun isDshInstalled(ctx: Context): Boolean = NodeRuntime.isDshInstalled(ctx)
 
     /**
@@ -26,9 +24,6 @@ object Bootstrap {
      * pinned reinstall only fires when the active tree is missing or OLDER
      * than the packaged version, never as a downgrade.
      */
-    fun zcodeNeedsInstall(ctx: Context): Boolean =
-        AgentSlots.activeNeedsPinned(ctx, AgentSlots.ZCODE, Versions.ZCODE)
-
     fun dshNeedsInstall(ctx: Context): Boolean =
         AgentSlots.activeNeedsPinned(ctx, AgentSlots.DSH, Versions.DSH)
 
@@ -43,8 +38,6 @@ object Bootstrap {
             return false
         }
 
-        val zcodeOk = npmInstall(ctx, node, npm, usr, AgentSlots.ZCODE, Versions.ZCODE_TGZ, Versions.ZCODE, ignoreScripts = false, onLine = onLine)
-        if (zcodeOk) marker(ctx, "zcode").writeText("ok")
         val dshOk = npmInstall(ctx, node, npm, usr, AgentSlots.DSH, Versions.DSH_TGZ, Versions.DSH, ignoreScripts = true, onLine = onLine)
         if (dshOk) marker(ctx, "dsh").writeText("ok")
         if (dshOk) {
@@ -53,7 +46,7 @@ object Bootstrap {
             // the freshly unpacked dsh tree has none of the Android fixes
             applyAndroidPatches(ctx, onLine)
         }
-        return dshOk // the dsh service only needs dsh; zcode is for the terminal
+        return dshOk
     }
 
     /**

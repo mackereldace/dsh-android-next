@@ -14,7 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "PhoneAgent"
+rootProject.name = "DshAndroidNext"
 include(":app")
-include(":terminal-emulator")
-include(":terminal-view")
