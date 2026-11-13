@@ -20,6 +20,15 @@ object DshState {
 
     /** Live process handle, published for the watchdog's dead/hung distinction. */
     @Volatile var process: Process? = null
+
+    /**
+     * True from the moment a boot starts until it is ready or has failed.
+     * A first run installs dsh from the registry (~2 min): port 3080 stays
+     * closed for far longer than the watchdog's grace, so without this flag
+     * the watchdog "repairs" a healthy boot by killing it and starting a
+     * second one — which then races the first on the same slot tree.
+     */
+    @Volatile var booting: Boolean = false
 }
 
 /**
@@ -48,11 +57,13 @@ class DshService : Service() {
         DshState.serverReady = false
         DshState.lastError = null
         booting = true
+        DshState.booting = true
         thread(name = "dsh-boot") {
             try {
                 boot()
             } finally {
                 booting = false
+                DshState.booting = false
             }
         }
         return START_STICKY

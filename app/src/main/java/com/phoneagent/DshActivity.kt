@@ -92,6 +92,28 @@ class DshActivity : ComponentActivity() {
             errorText.text = DshState.lastError ?: getString(R.string.dsh_error)
             errorBox.visibility = View.VISIBLE
             webView.visibility = View.GONE
+            // A first run installs dsh for minutes; the service may go ready
+            // after this screen was drawn. Poll instead of making the user tap
+            // 重试 into a stale error.
+            watchForLateReady()
+        }
+    }
+
+    private var watching = false
+
+    private fun watchForLateReady() {
+        if (watching) return
+        watching = true
+        thread(name = "dsh-wait-ready") {
+            val deadline = System.currentTimeMillis() + 10 * 60 * 1000
+            while (System.currentTimeMillis() < deadline) {
+                if (DshState.serverReady) {
+                    runOnUiThread { watching = false; showState() }
+                    return@thread
+                }
+                Thread.sleep(2000)
+            }
+            watching = false
         }
     }
 

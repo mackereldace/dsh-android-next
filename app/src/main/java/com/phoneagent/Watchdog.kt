@@ -28,7 +28,7 @@ import java.net.Socket
  */
 object Watchdog {
 
-    enum class State { HEALTHY, DEGRADED_HTTP, DEGRADED_LOG, DEAD }
+    enum class State { STARTING, HEALTHY, DEGRADED_HTTP, DEGRADED_LOG, DEAD }
 
     private const val TAG = "phone-agent-watchdog"
 
@@ -111,6 +111,13 @@ object Watchdog {
                     var anyAlive = false
                     for (t in activeTargets.values.toList()) {
                         val st = states.getOrPut(t.agent) { TargetState() }
+                        // A first-run component install keeps the port dark for
+                        // minutes; restarting it here would start a second boot
+                        // that races the installer.
+                        if (t.agent == AgentRegistry.DSH_ID && DshState.booting) {
+                            st.lastState = State.STARTING
+                            continue
+                        }
                         val s = probe(ctx, t)
                         st.lastState = s
                         // Until we have ever seen this service answer, it is booting,
@@ -127,6 +134,7 @@ object Watchdog {
                             }
                         }
                         when (s) {
+                            State.STARTING -> { /* booting/installing: nothing to repair */ }
                             State.HEALTHY -> {
                                 anyAlive = true
                                 st.httpMisses = 0

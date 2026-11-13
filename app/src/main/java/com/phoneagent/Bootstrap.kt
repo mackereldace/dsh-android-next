@@ -40,12 +40,26 @@ object Bootstrap {
         val lockFile = File(ctx.filesDir, ".install.lock")
         val channel = java.io.RandomAccessFile(lockFile, "rw").channel
         val lock = try {
-            channel.tryLock()
+            // Block, don't fail: the second caller is usually the Activity's
+            // boot reacting to the same "components missing" verdict.  Waiting
+            // is correct — returning false here turns a healthy install into an
+            // error screen for the user.
+            var acquired: java.nio.channels.FileLock? = null
+            val deadline = System.currentTimeMillis() + 10 * 60 * 1000L
+            while (acquired == null && System.currentTimeMillis() < deadline) {
+                acquired = runCatching { channel.tryLock() }.getOrNull()
+                if (acquired == null) {
+                    onLine("[dshandroid] 另一个安装进程正在运行，等待其完成…")
+                    Thread.sleep(2000)
+                }
+            }
+            acquired
         } catch (_: Exception) {
             null
         }
         if (lock == null) {
-            onLine("[dshandroid] 另一个安装进程正在运行，等待其完成…")
+            onLine("[dshandroid] 等待安装锁超时")
+            runCatching { channel.close() }
             return false
         }
         return try {
