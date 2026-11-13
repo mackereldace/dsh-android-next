@@ -7,8 +7,13 @@
 # (flock stub, link->rename fallback, sandbox platform chain, attachment dir
 # fsync tolerance, ripgrep shim, shebang prefixes).
 
-USR="/data/user/0/com.phoneagent/files/usr"
+# Derive the runtime prefix from this script's own location instead of
+# hard-coding the app id: the script always lives at $USR/share/phone-agent/.
+# A stale literal here (…/com.phoneagent/files/usr) made every patch silently
+# skip on the renamed build — and a missing sandbox-chain patch means the bash
+# tool fails closed while the app still looks healthy.
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+USR="${USR:-$(CDPATH= cd -- "$HERE/../.." && pwd)}"
 JS="$HERE/patch-dsh-android.mjs"
 
 if [ ! -f "$JS" ]; then

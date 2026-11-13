@@ -39,7 +39,7 @@ class LauncherActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableImmersiveSystemBars()
+        enableImmersiveSystemBars(fullBleed = false)
         setContent {
             AppTheme { Home() }
         }

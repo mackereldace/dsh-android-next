@@ -29,10 +29,15 @@ object StorageAccess {
     fun needsSpecialScreen(ctx: Context): Boolean =
         Build.VERSION.SDK_INT >= 30 && !isAllFilesGranted(ctx)
 
-    fun buildAllFilesIntent(): Intent =
+    /**
+     * The settings page is per-package: hard-coding the old app id here opened
+     * the grant screen for a DIFFERENT app (or nothing at all) once the build
+     * was renamed.
+     */
+    fun buildAllFilesIntent(ctx: Context): Intent =
         Intent(
             Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-            Uri.parse("package:com.phoneagent"),
+            Uri.parse("package:${ctx.packageName}"),
         )
 
     /**

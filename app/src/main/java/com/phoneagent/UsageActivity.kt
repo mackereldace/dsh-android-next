@@ -63,7 +63,7 @@ class UsageActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableImmersiveSystemBars()   // edge-to-edge + 透明系统栏
+        enableImmersiveSystemBars(fullBleed = false)   // edge-to-edge + 透明系统栏
         setContent {
             AppTheme { Root() }
         }

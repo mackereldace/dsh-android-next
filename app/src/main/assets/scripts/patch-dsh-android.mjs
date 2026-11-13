@@ -185,7 +185,7 @@ export async function tryLockExclusive(fd) {
     join(DSH_ROOT, 'node_modules/@vscode/ripgrep-android-arm64'),
     // profile-hosted copies of @vscode/ripgrep resolve their platform package
     // next to themselves, so the shim has to exist there too when not symlinked
-    join(process.env.HOME || '/data/user/0/com.phoneagent/files/home', '.dsh/profiles/node_modules/@vscode/ripgrep-android-arm64'),
+    join(process.env.HOME || join(USR, '../home'), '.dsh/profiles/node_modules/@vscode/ripgrep-android-arm64'),
   ];
   const works = (bin) => {
     if (!existsSync(bin)) return false;

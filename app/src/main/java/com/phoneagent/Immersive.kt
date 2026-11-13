@@ -18,14 +18,21 @@ import androidx.core.view.WindowInsetsCompat
  */
 object Immersive {
     /**
-     * true  = 内容一直铺到栏下方（真沉浸，页面顶部/底部需要有 safe-area 意识）
-     * false = 栏透明、背景统一，但内容留在安全区内（默认，风险最低）
+     * 全局开关（各 Activity 的 [enableImmersiveSystemBars] 参数可覆盖）：
+     * true  = 内容铺到栏下方（真沉浸，页面需要自己处理 safe-area）
+     * false = 栏透明、背景统一，但内容留在安全区内
+     *
+     * 默认 true：Web 界面（dsh）用桌面式布局，顶部留白足够，铺满才不会有
+     * 那条"黑带"；Miuix 页面自带 TopAppBar 内缩，仍用 false。
      */
-    var fullBleed = false
+    var fullBleed = true
 }
 
-/** 在每个 Activity 的 onCreate 里、super.onCreate 之后调用。 */
-fun ComponentActivity.enableImmersiveSystemBars() {
+/**
+ * 在每个 Activity 的 onCreate 里、super.onCreate 之后调用。
+ * [fullBleed] 覆盖全局默认：WebView / 终端的宿主页面传 true，Compose 页面用默认。
+ */
+fun ComponentActivity.enableImmersiveSystemBars(fullBleed: Boolean = Immersive.fullBleed) {
     enableEdgeToEdge(
         statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
@@ -42,7 +49,7 @@ fun ComponentActivity.enableImmersiveSystemBars() {
         isAppearanceLightStatusBars = false
         isAppearanceLightNavigationBars = false
     }
-    if (!Immersive.fullBleed) padContentBySystemBars()
+    if (!fullBleed) padContentBySystemBars()
 }
 
 /**

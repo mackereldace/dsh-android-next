@@ -38,7 +38,7 @@ class SettingsActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableImmersiveSystemBars()   // edge-to-edge + 透明系统栏
+        enableImmersiveSystemBars(fullBleed = false)   // edge-to-edge + 透明系统栏
         pickWorkspace = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
             if (r.resultCode == RESULT_OK) {
                 r.data?.data?.let { Workspace.persist(this, it) }
@@ -223,7 +223,7 @@ class SettingsActivity : ComponentActivity() {
                             Spacer(Modifier.height(10.dp))
                             if (StorageAccess.needsSpecialScreen(this@SettingsActivity)) {
                                 UpdateRow("授予所有文件访问", enabled = true) {
-                                    startActivity(StorageAccess.buildAllFilesIntent())
+                                    startActivity(StorageAccess.buildAllFilesIntent(this@SettingsActivity))
                                 }
                             } else {
                                 M3Text(

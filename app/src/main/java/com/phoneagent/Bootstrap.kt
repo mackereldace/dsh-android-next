@@ -27,8 +27,36 @@ object Bootstrap {
     fun dshNeedsInstall(ctx: Context): Boolean =
         AgentSlots.activeNeedsPinned(ctx, AgentSlots.DSH, Versions.DSH)
 
-    /** Blocking; call from a worker thread. Streams npm output lines to [onLine]. */
+    /**
+     * Blocking; call from a worker thread. Streams npm output lines to [onLine].
+     *
+     * Serialised across processes: the Activity and the service (or a watchdog
+     * restart) can both decide "components are missing" within seconds of each
+     * other. Two concurrent `npm install` runs into the same slot race during
+     * reify/cleanup — on device that produced `ENOTEMPTY` plus a tree of empty
+     * package directories, i.e. a corrupt install that only failed much later.
+     */
     fun install(ctx: Context, onLine: (String) -> Unit): Boolean {
+        val lockFile = File(ctx.filesDir, ".install.lock")
+        val channel = java.io.RandomAccessFile(lockFile, "rw").channel
+        val lock = try {
+            channel.tryLock()
+        } catch (_: Exception) {
+            null
+        }
+        if (lock == null) {
+            onLine("[phone-agent] 另一个安装进程正在运行，等待其完成…")
+            return false
+        }
+        return try {
+            installLocked(ctx, onLine)
+        } finally {
+            runCatching { lock.release() }
+            runCatching { channel.close() }
+        }
+    }
+
+    private fun installLocked(ctx: Context, onLine: (String) -> Unit): Boolean {
         NodeRuntime.copyPackages(ctx)
         val usr = NodeRuntime.usrDir(ctx)
         val node = NodeRuntime.nodeBin(ctx)

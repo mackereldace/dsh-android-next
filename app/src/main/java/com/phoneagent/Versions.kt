@@ -9,7 +9,7 @@ package com.phoneagent
  */
 object Versions {
     const val RUNTIME = "node-26.4.0-3"
-    const val DSH = "0.2.0-rc.2"
+    const val DSH = "0.2.2-rc.1"
     /** Static musl ripgrep that backs dsh's glob/grep on Android. */
     const val RIPGREP_VERSION = "1.18.0"
 
