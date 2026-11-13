@@ -17,7 +17,7 @@ USR="${USR:-$(CDPATH= cd -- "$HERE/../.." && pwd)}"
 JS="$HERE/patch-dsh-android.mjs"
 
 if [ ! -f "$JS" ]; then
-  echo "[phone-agent] WARN: $JS missing, dsh patches skipped"
+  echo "[dshandroid] WARN: $JS missing, dsh patches skipped"
   exit 0
 fi
 

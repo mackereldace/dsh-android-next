@@ -200,7 +200,7 @@ object AgentSlots {
         if (s.state == "pending-activate" && s.standby != null) {
             write(ctx, pkg, State(s.standby, s.standbyVersion, s.active, s.activeVersion, "verifying"))
             linkActive(ctx, pkg)
-            onLine("[phone-agent] 已切换到 ${packageName(pkg)} ${s.standbyVersion}，本启动为验证启动")
+            onLine("[dshandroid] 已切换到 ${packageName(pkg)} ${s.standbyVersion}，本启动为验证启动")
             return 1
         }
         return if (s.state == "verifying") 1 else 0
@@ -234,7 +234,7 @@ object AgentSlots {
         // active and standby swapped at beginBoot; swap back
         write(ctx, pkg, State(s.standby ?: s.active, s.standbyVersion, s.active, s.activeVersion, "verified"))
         linkActive(ctx, pkg)
-        onLine("[phone-agent] 新版本启动失败，已回滚到 ${s.standbyVersion}")
+        onLine("[dshandroid] 新版本启动失败，已回滚到 ${s.standbyVersion}")
         return true
     }
 
@@ -307,7 +307,7 @@ object AgentSlots {
             JSONObject(File(legacyDir(ctx, pkg), "package.json").readText()).optString("version").ifEmpty { null }
         }.getOrNull() ?: return
         if (actual != s.activeVersion) {
-            onLine("[phone-agent] 检测到 $pkg 现役树版本变化：${s.activeVersion} -> $actual（会话内直接改动？）")
+            onLine("[dshandroid] 检测到 $pkg 现役树版本变化：${s.activeVersion} -> $actual（会话内直接改动？）")
             write(ctx, pkg, State(s.active, actual, s.standby, s.standbyVersion, "verified"))
             Bootstrap.applyAndroidPatches(ctx, onLine)
         }

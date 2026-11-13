@@ -19,7 +19,7 @@ object RootIntegration {
     fun hasRoot(): Boolean = Shell.isAppGrantedRoot() == true
 
     fun installModule(ctx: Context): List<String> {
-        if (!hasRoot()) return listOf("未获得 root 授权（请在 root 管理器中允许 Phone-Agent）")
+        if (!hasRoot()) return listOf("未获得 root 授权（请在 root 管理器中允许 DshAndroid Next）")
         if (!NodeRuntime.isRuntimeExtracted(ctx)) NodeRuntime.extractRuntime(ctx)
 
         val staging = File(ctx.filesDir, "module").apply { deleteRecursively() }

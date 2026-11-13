@@ -235,7 +235,7 @@ class PhoneToolService : Service() {
                     "/a11y-dump" -> {
                         val svc = A11yService.instance
                         if (svc == null) {
-                            json(mapOf("error" to "accessibility service not enabled (系统设置-无障碍 开启 phone-agent 设备工具)"))
+                            json(mapOf("error" to "accessibility service not enabled (系统设置-无障碍 开启 DshAndroid 设备工具)"))
                         } else {
                             // mode=interactive keeps only actionable nodes (token-lean);
                             // diff=true returns +/-/= lines against the previous dump
@@ -253,7 +253,7 @@ class PhoneToolService : Service() {
                         val svc = A11yService.instance
                         val ref = q["ref"]
                         when {
-                            svc == null -> json(mapOf("error" to "accessibility service not enabled (系统设置-无障碍 开启 phone-agent 设备工具)"))
+                            svc == null -> json(mapOf("error" to "accessibility service not enabled (系统设置-无障碍 开启 DshAndroid 设备工具)"))
                             ref == null -> argErrJson("ref")
                             else -> json(svc.clickByRef(ref, longClick = q["long"] == "true"))
                         }
@@ -263,7 +263,7 @@ class PhoneToolService : Service() {
                         val ref = q["ref"]
                         val text = q["text"]
                         when {
-                            svc == null -> json(mapOf("error" to "accessibility service not enabled (系统设置-无障碍 开启 phone-agent 设备工具)"))
+                            svc == null -> json(mapOf("error" to "accessibility service not enabled (系统设置-无障碍 开启 DshAndroid 设备工具)"))
                             ref == null -> argErrJson("ref")
                             text == null -> argErrJson("text")
                             else -> json(svc.setTextByRef(ref, text))
@@ -273,7 +273,7 @@ class PhoneToolService : Service() {
                         val svc = A11yService.instance
                         val ref = q["ref"]
                         when {
-                            svc == null -> json(mapOf("error" to "accessibility service not enabled (系统设置-无障碍 开启 phone-agent 设备工具)"))
+                            svc == null -> json(mapOf("error" to "accessibility service not enabled (系统设置-无障碍 开启 DshAndroid 设备工具)"))
                             ref == null -> argErrJson("ref")
                             else -> json(svc.textByRef(ref))
                         }

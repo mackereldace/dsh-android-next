@@ -48,7 +48,7 @@ object VirtualDisplay {
                 "仅支持多屏的 ROM/汽车版 Android 提供该能力。")
         }
         val before = displayIds()
-        run("cmd display create-display --type VIRTUAL 'Phone Agent' 2>&1")
+        run("cmd display create-display --type VIRTUAL 'DshAndroid Next' 2>&1")
         val after = displayIds()
         val id = after.firstOrNull { it !in before }
         return if (id == null) null to ("创建后未见新 display：" + after) else id to "已创建 display $id"

@@ -25,7 +25,7 @@ import { basename, dirname, join } from 'node:path';
 
 const USR = process.argv[2];
 if (!USR) {
-  console.error('[phone-agent] patch-dsh-android: missing usr prefix');
+  console.error('[dshandroid] patch-dsh-android: missing usr prefix');
   process.exit(2);
 }
 
@@ -49,22 +49,22 @@ let warned = 0;
 
 function patchFile(file, { marker, apply, label }) {
   if (!existsSync(file)) {
-    console.log(`[phone-agent] skip ${label}: file not present`);
+    console.log(`[dshandroid] skip ${label}: file not present`);
     return;
   }
   const src = readFileSync(file, 'utf8');
   if (src.includes(marker)) {
-    console.log(`[phone-agent] ${label}: already patched`);
+    console.log(`[dshandroid] ${label}: already patched`);
     return;
   }
   const out = apply(src);
   if (out === null || out === undefined) {
-    console.log(`[phone-agent] WARN ${label}: anchor not found (upstream changed?)`);
+    console.log(`[dshandroid] WARN ${label}: anchor not found (upstream changed?)`);
     warned++;
     return;
   }
   writeFileSync(file, out);
-  console.log(`[phone-agent] ${label}: patched`);
+  console.log(`[dshandroid] ${label}: patched`);
   patched++;
 }
 
@@ -83,14 +83,14 @@ export async function tryLockExclusive(fd) {
 }
 `;
     if (readFileSync(file, 'utf8').includes('PHONE_AGENT_ANDROID_STUB')) {
-      console.log('[phone-agent] flock: already patched');
+      console.log('[dshandroid] flock: already patched');
     } else {
       writeFileSync(file, stub);
-      console.log('[phone-agent] flock: patched (no-op stub)');
+      console.log('[dshandroid] flock: patched (no-op stub)');
       patched++;
     }
   } else {
-    console.log('[phone-agent] skip flock: node-addon-system not present');
+    console.log('[dshandroid] skip flock: node-addon-system not present');
   }
 }
 
@@ -199,7 +199,7 @@ export async function tryLockExclusive(fd) {
     const bin = join(dir, 'bin/rg');
     if (works(bin)) continue;
     if (!src) {
-      console.log(`[phone-agent] ripgrep shim: no rg staged, cannot repair ${dir}`);
+      console.log(`[dshandroid] ripgrep shim: no rg staged, cannot repair ${dir}`);
       continue;
     }
     mkdirSync(join(dir, 'bin'), { recursive: true });
@@ -210,11 +210,11 @@ export async function tryLockExclusive(fd) {
     // verify what we just installed: a corrupted or wrong-flavour binary must
     // be reported here, not discovered later as "ripgrep launch failed"
     console.log(works(bin)
-      ? `[phone-agent] ripgrep shim: installed into ${dir}`
-      : `[phone-agent] WARN ripgrep shim: installed but NOT runnable in ${dir} (bad staged binary?)`);
+      ? `[dshandroid] ripgrep shim: installed into ${dir}`
+      : `[dshandroid] WARN ripgrep shim: installed but NOT runnable in ${dir} (bad staged binary?)`);
   }
   if (installed > 0) patched += installed;
-  else if (dirs.every((d) => works(join(d, 'bin/rg')))) console.log('[phone-agent] ripgrep shim: OK');
+  else if (dirs.every((d) => works(join(d, 'bin/rg')))) console.log('[dshandroid] ripgrep shim: OK');
 }
 
 // --- 6. shebang prefix rewrite ----------------------------------------------
@@ -291,7 +291,7 @@ export async function tryLockExclusive(fd) {
       }
     }
   }
-  console.log(`[phone-agent] shebangs: rewrote ${count} file(s) to the app prefix`);
+  console.log(`[dshandroid] shebangs: rewrote ${count} file(s) to the app prefix`);
   patched += count > 0 ? 1 : 0;
 }
 
@@ -326,14 +326,14 @@ const api = { requireBuiltin, isAllowedInternalId, getBindingInfo };
 module.exports = { ...api, default: api };
 `;
     if (readFileSync(file, 'utf8').includes('PHONE_AGENT_ANDROID_STUB')) {
-      console.log('[phone-agent] require-builtin: already patched');
+      console.log('[dshandroid] require-builtin: already patched');
     } else {
       writeFileSync(file, stub);
-      console.log('[phone-agent] require-builtin: patched (JS fallback)');
+      console.log('[dshandroid] require-builtin: patched (JS fallback)');
       patched++;
     }
   } else {
-    console.log('[phone-agent] skip require-builtin: not present');
+    console.log('[dshandroid] skip require-builtin: not present');
   }
 }
 
@@ -357,7 +357,7 @@ exec "$U/bin/node" --expose-internals "$U/lib/node_modules/@deepseek-ai/dsh/lib/
     /* missing or a symlink to the real entry: replace it */
   }
   if (current && current.includes('PHONE_AGENT_DSH_WRAPPER')) {
-    console.log('[phone-agent] dsh launcher: already wrapped');
+    console.log('[dshandroid] dsh launcher: already wrapped');
   } else if (existsSync(bin) || current !== null) {
     try {
       rmSync(bin, { force: true });
@@ -366,10 +366,10 @@ exec "$U/bin/node" --expose-internals "$U/lib/node_modules/@deepseek-ai/dsh/lib/
     }
     writeFileSync(bin, wrapper);
     chmodSync(bin, 0o755);
-    console.log('[phone-agent] dsh launcher: wrapped (--expose-internals)');
+    console.log('[dshandroid] dsh launcher: wrapped (--expose-internals)');
     patched++;
   } else {
-    console.log('[phone-agent] skip dsh launcher: bin/dsh not present');
+    console.log('[dshandroid] skip dsh launcher: bin/dsh not present');
   }
 }
 
@@ -387,7 +387,7 @@ exec "$U/bin/node" --expose-internals "$U/lib/node_modules/@deepseek-ai/dsh/lib/
   const appRoot = dirname(dirname(USR)); // /data/user/0/<pkg>
   const NEW = `${appRoot}/bin/sh`;
   if (Buffer.byteLength(NEW) > Buffer.byteLength(OLD)) {
-    console.log(`[phone-agent] WARN git shell path: replacement too long (${NEW})`);
+    console.log(`[dshandroid] WARN git shell path: replacement too long (${NEW})`);
   } else {
     // the replacement must exist for git to spawn it
     const shim = join(appRoot, 'bin');
@@ -435,13 +435,13 @@ exec "$U/bin/node" --expose-internals "$U/lib/node_modules/@deepseek-ai/dsh/lib/
       try {
         writeFileSync(p, buf);
         fixed++;
-        console.log(`[phone-agent] git shell path: patched ${hits} occurrence(s) in ${basename(p)}`);
+        console.log(`[dshandroid] git shell path: patched ${hits} occurrence(s) in ${basename(p)}`);
       } catch {
-        console.log(`[phone-agent] WARN git shell path: cannot write ${p}`);
+        console.log(`[dshandroid] WARN git shell path: cannot write ${p}`);
       }
     }
     if (fixed > 0) patched += fixed;
-    else console.log('[phone-agent] git shell path: nothing to patch');
+    else console.log('[dshandroid] git shell path: nothing to patch');
   }
 }
 
@@ -455,7 +455,7 @@ exec "$U/bin/node" --expose-internals "$U/lib/node_modules/@deepseek-ai/dsh/lib/
 {
   const dir = resolvePkgDir('sharp');
   if (!dir) {
-    console.log('[phone-agent] skip sharp fallback: sharp not present');
+    console.log('[dshandroid] skip sharp fallback: sharp not present');
   } else {
     let sharpVersion = null;
     try {
@@ -466,23 +466,23 @@ exec "$U/bin/node" --expose-internals "$U/lib/node_modules/@deepseek-ai/dsh/lib/
     const wasmPkg = join(dir, 'node_modules/@img/sharp-wasm32/package.json');
     const marker = sharpVersion ? join(dir, `.phone-agent-wasm-${sharpVersion}`) : null;
     if (!sharpVersion) {
-      console.log('[phone-agent] skip sharp fallback: no version');
+      console.log('[dshandroid] skip sharp fallback: no version');
     } else if (existsSync(wasmPkg)) {
-      console.log(`[phone-agent] sharp wasm fallback: present (sharp ${sharpVersion})`);
+      console.log(`[dshandroid] sharp wasm fallback: present (sharp ${sharpVersion})`);
     } else if (marker && existsSync(marker)) {
-      console.log('[phone-agent] sharp wasm fallback: already attempted for this version');
+      console.log('[dshandroid] sharp wasm fallback: already attempted for this version');
     } else {
       const npmCli = join(USR, 'lib/node_modules/npm/bin/npm-cli.js');
-      console.log(`[phone-agent] sharp wasm fallback: installing @img/sharp-wasm32@${sharpVersion} (needs network)`);
+      console.log(`[dshandroid] sharp wasm fallback: installing @img/sharp-wasm32@${sharpVersion} (needs network)`);
       spawnSync(join(USR, 'bin/node'), [
         npmCli, 'install', '--prefix', dir, '--no-save', '--no-package-lock', '--ignore-scripts',
         `@img/sharp-wasm32@${sharpVersion}`,
       ], { stdio: 'ignore', timeout: 5 * 60 * 1000, env: process.env });
       if (existsSync(wasmPkg)) {
-        console.log('[phone-agent] sharp wasm fallback: installed');
+        console.log('[dshandroid] sharp wasm fallback: installed');
         patched++;
       } else {
-        console.log('[phone-agent] WARN sharp wasm fallback: install failed; image reading stays unavailable');
+        console.log('[dshandroid] WARN sharp wasm fallback: install failed; image reading stays unavailable');
       }
       try {
         if (marker) writeFileSync(marker, 'attempted\n');
@@ -493,5 +493,5 @@ exec "$U/bin/node" --expose-internals "$U/lib/node_modules/@deepseek-ai/dsh/lib/
   }
 }
 
-console.log(`[phone-agent] dsh android patch done (${patched} change(s), ${warned} warning(s))`);
+console.log(`[dshandroid] dsh android patch done (${patched} change(s), ${warned} warning(s))`);
 if (warned > 0) process.exitCode = 1;

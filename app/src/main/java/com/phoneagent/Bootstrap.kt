@@ -45,7 +45,7 @@ object Bootstrap {
             null
         }
         if (lock == null) {
-            onLine("[phone-agent] 另一个安装进程正在运行，等待其完成…")
+            onLine("[dshandroid] 另一个安装进程正在运行，等待其完成…")
             return false
         }
         return try {
@@ -62,7 +62,7 @@ object Bootstrap {
         val node = NodeRuntime.nodeBin(ctx)
         val npm = NodeRuntime.npmCliJs(ctx)
         if (!node.canExecute() || !npm.exists()) {
-            onLine("[phone-agent] 运行时不完整，无法安装组件")
+            onLine("[dshandroid] 运行时不完整，无法安装组件")
             return false
         }
 
@@ -86,7 +86,7 @@ object Bootstrap {
     fun applyAndroidPatches(ctx: Context, onLine: (String) -> Unit, dshRoot: File? = null) {
         val script = File(NodeRuntime.usrDir(ctx), "share/phone-agent/patch-dsh-flock.sh")
         if (!script.exists()) {
-            onLine("[phone-agent] 未找到补丁脚本，跳过 Android 适配")
+            onLine("[dshandroid] 未找到补丁脚本，跳过 Android 适配")
             return
         }
         try {
@@ -96,9 +96,9 @@ object Bootstrap {
             pb.redirectErrorStream(true)
             val p = pb.start()
             p.inputStream.bufferedReader().forEachLine(onLine)
-            if (p.waitFor() != 0) onLine("[phone-agent] 补丁脚本返回非零（部分适配可能未生效）")
+            if (p.waitFor() != 0) onLine("[dshandroid] 补丁脚本返回非零（部分适配可能未生效）")
         } catch (e: Exception) {
-            onLine("[phone-agent] 补丁脚本执行异常：${e.message}")
+            onLine("[dshandroid] 补丁脚本执行异常：${e.message}")
         }
     }
 
@@ -131,7 +131,7 @@ object Bootstrap {
         // never reach an already-installed device.
         val installed = if (manifest.exists()) installedVersion(manifest) else null
         if (installed == wantVersion) return true
-        if (installed != null) onLine("[phone-agent] 组件更新 $installed -> $wantVersion（$tgz）")
+        if (installed != null) onLine("[dshandroid] 组件更新 $installed -> $wantVersion（$tgz）")
         val args = mutableListOf(
             node.absolutePath, npm.absolutePath,
             "install", "-g", "--prefix", slotPrefix.absolutePath,
@@ -145,7 +145,7 @@ object Bootstrap {
             val p = pb.start()
             p.inputStream.bufferedReader().forEachLine(onLine)
             val code = p.waitFor()
-            if (code != 0) onLine("[phone-agent] npm 退出码 $code（$tgz）")
+            if (code != 0) onLine("[dshandroid] npm 退出码 $code（$tgz）")
             if (code == 0) {
                 // record the slot state (first install creates it) and expose
                 // the tree through the npm-global symlink
@@ -155,12 +155,12 @@ object Bootstrap {
                     AgentSlots.initActive(ctx, pkg, version)
                 } else if (version != null) {
                     AgentSlots.setActiveVersion(ctx, pkg, version)
-                    onLine("[phone-agent] $pkg 现役槽已更新到 $version")
+                    onLine("[dshandroid] $pkg 现役槽已更新到 $version")
                 }
             }
             code == 0
         } catch (e: Exception) {
-            onLine("[phone-agent] 安装异常：${e.message}")
+            onLine("[dshandroid] 安装异常：${e.message}")
             false
         }
     }
@@ -176,7 +176,7 @@ object Bootstrap {
     private fun injectPtyPrebuild(ctx: Context, onLine: (String) -> Unit) {
         val src = File(NodeRuntime.pkgDir(ctx), "node-pty-prebuild/pty.node")
         if (!src.exists()) {
-            onLine("[phone-agent] 未找到 node-pty 预编译（dsh 网页终端将不可用）")
+            onLine("[dshandroid] 未找到 node-pty 预编译（dsh 网页终端将不可用）")
             return
         }
         val dir = File(
@@ -185,7 +185,7 @@ object Bootstrap {
         )
         dir.mkdirs()
         src.copyTo(File(dir, "pty.node"), overwrite = true)
-        onLine("[phone-agent] 已注入 node-pty 安卓预编译。")
+        onLine("[dshandroid] 已注入 node-pty 安卓预编译。")
     }
 
     /**
@@ -200,7 +200,7 @@ object Bootstrap {
         try {
             val ver = org.json.JSONObject(sharpPkg.readText()).getString("version")
             if (File(sharpDir, "node_modules/@img/sharp-wasm32/package.json").exists()) return
-            onLine("[phone-agent] 安装 @img/sharp-wasm32@$ver 到 sharp 本地依赖树 ...")
+            onLine("[dshandroid] 安装 @img/sharp-wasm32@$ver 到 sharp 本地依赖树 ...")
             val pb = ProcessBuilder(
                 node.absolutePath, npm.absolutePath,
                 "install", "--prefix", sharpDir.absolutePath,
@@ -214,11 +214,11 @@ object Bootstrap {
             p.inputStream.bufferedReader().forEachLine(onLine)
             val code = p.waitFor()
             onLine(
-                if (code == 0) "[phone-agent] sharp-wasm32 安装完成。"
-                else "[phone-agent] sharp-wasm32 安装失败（退出码 $code）"
+                if (code == 0) "[dshandroid] sharp-wasm32 安装完成。"
+                else "[dshandroid] sharp-wasm32 安装失败（退出码 $code）"
             )
         } catch (e: Exception) {
-            onLine("[phone-agent] sharp-wasm32 安装失败（dsh 图片功能受限）：${e.message}")
+            onLine("[dshandroid] sharp-wasm32 安装失败（dsh 图片功能受限）：${e.message}")
         }
     }
 

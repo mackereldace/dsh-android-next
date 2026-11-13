@@ -30,7 +30,7 @@ object Notifications {
         )
         val n = Notification.Builder(ctx, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_warning)
-            .setContentTitle("Phone Agent")
+            .setContentTitle(ctx.getString(R.string.app_name))
             .setContentText(text)
             .setContentIntent(pi)
             .setAutoCancel(true)
@@ -42,7 +42,7 @@ object Notifications {
     fun ensureChannel(ctx: Context) {
         val mgr = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         mgr.createNotificationChannel(
-            NotificationChannel(CHANNEL, "Phone Agent", NotificationManager.IMPORTANCE_LOW)
+            NotificationChannel(CHANNEL, "DshAndroid Next", NotificationManager.IMPORTANCE_LOW)
         )
         mgr.createNotificationChannel(
             NotificationChannel(CHANNEL_DONE, "会话结束", NotificationManager.IMPORTANCE_DEFAULT)
@@ -53,7 +53,7 @@ object Notifications {
         ensureChannel(ctx)
         return Notification.Builder(ctx, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_warning)
-            .setContentTitle("Phone Agent")
+            .setContentTitle(ctx.getString(R.string.app_name))
             .setContentText(text)
             .setOngoing(true)
             .build()
