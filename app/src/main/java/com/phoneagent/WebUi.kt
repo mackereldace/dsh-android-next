@@ -23,6 +23,22 @@ import android.webkit.WebView
  */
 object WebUi {
 
+    /**
+     * Reserves the status-bar strip inside the page. Applied to <html> so the
+     * gap is painted with the page's own background (an inset on the WebView
+     * would show the window background and read as a colour band).
+     */
+    fun safeAreaJs(statusBarPx: Int): String = """
+        (function(){
+          if (document.getElementById('dsh-safe-top')) return;
+          var s=document.createElement('style');
+          s.id='dsh-safe-top';
+          s.textContent='html{box-sizing:border-box;min-height:100%;padding-top:${statusBarPx}px !important;}';
+          (document.head||document.documentElement).appendChild(s);
+        })();
+    """.trimIndent()
+
+
     /** Layout viewport width factor: wider viewport = smaller content = zoom out. */
     private fun viewportFactor(scalePercent: Int): Float = 100f / scalePercent.coerceIn(50, 150)
 

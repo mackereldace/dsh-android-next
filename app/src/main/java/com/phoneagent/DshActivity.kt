@@ -43,6 +43,10 @@ class DshActivity : ComponentActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
+                // 真沉浸（内容铺到状态栏下）必须由页面自己让出安全区，否则 dsh 顶栏
+                // 会被系统时间/图标压住。给 html 加 padding-top（而不是给 WebView 加），
+                // 这样那条区域显示的是页面自己的背景色，不会出现一条异色带。
+                view?.evaluateJavascript(WebUi.safeAreaJs(statusBarHeightPx()), null)
                 view?.evaluateJavascript(WebUi.patchJs(webScale) +
                     """
                     (function(){
@@ -97,6 +101,11 @@ class DshActivity : ComponentActivity() {
             // 重试 into a stale error.
             watchForLateReady()
         }
+    }
+
+    private fun statusBarHeightPx(): Int {
+        val id = resources.getIdentifier("status_bar_height", "dimen", "android")
+        return if (id > 0) resources.getDimensionPixelSize(id) else 0
     }
 
     private var watching = false
